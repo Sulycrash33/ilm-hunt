@@ -36,7 +36,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const REPO = "https://raw.githubusercontent.com/Sulycrash33/ilm-quiz";
+const REPO = "https://raw.githubusercontent.com/Sulycrash33/ilm-hunt";
 const PATH = "scripts/question-bank/arena/bank.json";
 
 interface BankRow {

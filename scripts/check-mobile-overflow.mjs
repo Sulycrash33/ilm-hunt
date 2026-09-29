@@ -20,7 +20,7 @@
  * need a session and are not covered here.
  *
  *   # start Chrome with a debugging port, then:
- *   node scripts/check-mobile-overflow.mjs 9350 https://ilm-quiz.vercel.app
+ *   node scripts/check-mobile-overflow.mjs 9350 https://www.ilmhunt.app
  */
 const PORT = Number(process.argv[2])
 const BASE = process.argv[3]
