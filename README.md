@@ -1,5 +1,7 @@
-# Firebase Studio
+# ILM Hunt
 
-This is a NextJS starter in Firebase Studio.
+An Islamic knowledge game built with Next.js and Supabase.
 
-To get started, take a look at src/app/page.tsx.
+- Production: <https://www.ilmhunt.app>
+- Project notes: [`docs/HANDOFF.md`](docs/HANDOFF.md)
+- Question bank runbook: [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
