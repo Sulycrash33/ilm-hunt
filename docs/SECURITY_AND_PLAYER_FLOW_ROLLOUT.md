@@ -56,7 +56,7 @@ category path. The game's share metadata now uses `https://ilmhunt.app`.
 
 The Vercel connector currently exposes only the separate `Clashfree` project.
 Both the Vercel game URL and `ilmhunt.app` serve Ilm Hunt, but the correct Vercel
-account/project still needs to be connected to verify this PR's deployment.
+account/project still needs to be connected to inspect preview logs and URLs.
 
 ## Current validation limits
 
@@ -74,8 +74,8 @@ returned HTTP 200, 5,246 already present, zero to insert and zero skipped.
 The scheduled translation batch after deployment returned HTTP 200, claimed
 12, wrote zero and released all 12 after rate limits.
 
-PR #97 remains a draft and is unmerged. Its Vercel preview check reports a
-failure; the connected build-log tool is unavailable, so its cause has not
-been established. No signed-in browser journey has been verified in this
+PR #97 remains a draft and is unmerged. The latest source commit's Vercel
+preview check passed. An earlier check failed; its cause was not established
+because the connected build-log tool is unavailable. No signed-in browser journey has been verified in this
 session. Gemini quota, repository visibility and the correct Vercel connection
 remain owner actions.
