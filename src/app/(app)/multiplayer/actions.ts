@@ -32,45 +32,22 @@ export async function startMultiplayerQuiz(roomId: string): Promise<void> {
  * the current question was the last one. Returns true when the quiz has
  * finished, false if there's another question to show.
  */
-export async function advanceQuestion(roomId: string): Promise<boolean> {
+export async function advanceQuestion(roomId: string, expectedQuestion: number): Promise<boolean> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('You must be signed in.');
+  const { data, error } = await supabase.rpc('advance_multiplayer_question_rpc', {
+    p_room_id: roomId, p_expected_question: expectedQuestion,
+  });
+  if (error) throw new Error(error.message || 'Could not advance the quiz.');
+  return data === true;
+}
 
-  const { data: room, error: roomError } = await supabase
-    .from('quiz_rooms')
-    .select('host_id, current_question, question_count')
-    .eq('id', roomId)
-    .single();
-
-  if (roomError || !room) throw new Error('Room not found');
-  if (room.host_id !== user.id) throw new Error('Only the host can advance the quiz.');
-
-  const nextQuestionNum = room.current_question + 1;
-
-  if (nextQuestionNum > room.question_count) {
-    const { error } = await supabase
-      .from('quiz_rooms')
-      .update({ status: 'finished', finished_at: new Date().toISOString() })
-      .eq('id', roomId);
-    if (error) throw new Error('Failed to finish the quiz.');
-    return true;
-  }
-
-  const { error: roomUpdateError } = await supabase
-    .from('quiz_rooms')
-    .update({ current_question: nextQuestionNum })
-    .eq('id', roomId);
-  if (roomUpdateError) throw new Error('Failed to advance to the next question.');
-
-  // Reset the new question's timer reference point so time-limit countdowns
-  // on the client start from when it actually became active.
-  const { error: questionUpdateError } = await supabase
-    .from('quiz_room_questions')
-    .update({ started_at: new Date().toISOString() })
-    .eq('room_id', roomId)
-    .eq('order_num', nextQuestionNum);
-  if (questionUpdateError) throw new Error('Failed to start the next question.');
-
-  return false;
+/** Any participant can complete an elapsed countdown if the host disconnects. */
+export async function beginMultiplayerQuiz(roomId: string): Promise<void> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('You must be signed in.');
+  const { error } = await supabase.rpc('begin_multiplayer_quiz_rpc', { p_room_id: roomId });
+  if (error) throw new Error(error.message || 'Could not begin the quiz.');
 }

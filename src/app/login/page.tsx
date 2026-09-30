@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,16 @@ import { NamesOfAllahBackdrop } from "@/components/layout/NamesOfAllahBackdrop";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { parseRoomCode, roomInvitePath } from "@/lib/multiplayer-experience";
 import { getOnboardingSelections, clearOnboardingSelections } from "@/lib/onboarding-storage";
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { t, dir } = useLanguage();
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  useEffect(() => { setInviteCode(parseRoomCode(new URLSearchParams(window.location.search).get("room"))); }, []);
+  const authPath = (path: string) => inviteCode ? `${path}?room=${inviteCode}` : path;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,7 +63,7 @@ export default function LoginPage() {
     }
     clearOnboardingSelections();
 
-    router.push("/home");
+    router.push(roomInvitePath(inviteCode));
     router.refresh();
   }
 
@@ -134,7 +138,7 @@ export default function LoginPage() {
         </Card>
         <p className="text-center text-sm text-muted-foreground">
           {t("dontHaveAccount")}{" "}
-          <Link href="/signup" className="font-semibold text-primary hover:underline">
+          <Link href={authPath("/signup")} className="font-semibold text-primary hover:underline">
             {t("signUp")}
           </Link>
         </p>

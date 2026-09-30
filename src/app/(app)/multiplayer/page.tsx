@@ -19,6 +19,8 @@ import {
   createRoom,
   joinRoom,
   startQuiz,
+  beginQuiz,
+  getMyRoomAnswer,
   submitAnswer,
   nextQuestion,
   getRoomState,
@@ -26,6 +28,8 @@ import {
   leaveRoom,
   toggleReady,
 } from "@/lib/multiplayer-service"
+import { parseRoomCode } from "@/lib/multiplayer-experience"
+import type { RoomConnection } from "@/lib/multiplayer-service"
 import type { QuizRoom, QuizRoomPlayer, QuizRoomQuestion } from "@/lib/multiplayer-types"
 import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/contexts/LanguageContext"
@@ -49,6 +53,9 @@ export default function MultiplayerPage() {
   const { t, dir } = useLanguage()
   const reduce = useGameReducedMotion()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(true)
+  const [connection, setConnection] = useState<RoomConnection>("connecting")
+  const [invited, setInvited] = useState(false)
   const [joining, setJoining] = useState(false)
   const joinLock = useRef(false)
   const roomActionLock = useRef(false)
@@ -70,6 +77,7 @@ export default function MultiplayerPage() {
   const [countdown, setCountdown] = useState(3)
   const [timeRemaining, setTimeRemaining] = useState(30)
   const [hasAnswered, setHasAnswered] = useState(false)
+  const [restoredAnswer, setRestoredAnswer] = useState<{ selectedIndex: number; isCorrect: boolean } | null>(null)
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null)
 
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -77,10 +85,16 @@ export default function MultiplayerPage() {
 
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
+  useEffect(() => {
+    const code = parseRoomCode(new URLSearchParams(window.location.search).get("room"))
+    if (code) { setJoinCode(code); setInvited(true) }
+  }, [])
+
   // Get current user on mount
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) setRestoring(false)
       if (data.user) {
         setCurrentUserId(data.user.id)
         // Get user's display name
@@ -93,8 +107,8 @@ export default function MultiplayerPage() {
             setCurrentUserName(profile?.display_name || data.user!.email?.split("@")[0] || "Player")
           })
       }
-    })
-  }, [])
+    }).catch(() => { setRestoring(false); setErrorMessage(t("somethingWentWrong")) })
+  }, [t])
 
   // Keep the latest fetched questions around so the room-status callback
   // (which fires independently of the questions callback) can look up the
@@ -120,34 +134,75 @@ export default function MultiplayerPage() {
     setTimeRemaining(active.timeLimit)
     setHasAnswered(false)
     setLastAnswerCorrect(null)
+    setRestoredAnswer(null)
   }, [])
+
+  // Only restore a room this signed-in player still belongs to. Invitations
+  // prefill a code; they never join or replace a room without a button press.
+  useEffect(() => {
+    if (!currentUserId) return
+    let cancelled = false
+    const key = `ilm-room:${currentUserId}`
+    async function restore() {
+      try {
+        const saved = sessionStorage.getItem(key)
+        if (!saved) return
+        const state = await getRoomState(saved)
+        if (cancelled) return
+        if (!state.players.some(p => p.userId === currentUserId)) {
+          sessionStorage.removeItem(key)
+          return
+        }
+        const invitation = parseRoomCode(new URLSearchParams(window.location.search).get("room"))
+        if (invitation && invitation !== state.room.code) return
+        questionsRef.current = state.questions
+        roomRef.current = state.room
+        setRoom(state.room)
+        setRoomId(state.room.id)
+        setRoomCode(state.room.code)
+        setPlayers(state.players)
+        setIsHost(state.room.hostId === currentUserId)
+        setTotalQuestions(state.room.questionCount)
+        setViewState(state.room.status === "finished" ? "results" : state.room.status === "in_progress" ? "quiz" : "lobby")
+        setShowResults(state.room.status === "finished")
+        applyActiveQuestion(state.room)
+        const active = state.questions.find(q => q.orderNum === state.room.currentQuestion)
+        if (active && state.room.status === "in_progress") {
+          const answer = await getMyRoomAnswer(saved, active.id, currentUserId!)
+          if (!cancelled && activeQuestionRef.current === active.id && answer) {
+            setRestoredAnswer(answer); setLastAnswerCorrect(answer.isCorrect)
+            setHasAnswered(true); answerLock.current = true
+          }
+        }
+      } catch {
+        if (!cancelled) setErrorMessage(t("roomRefreshFailed"))
+      } finally { if (!cancelled) setRestoring(false) }
+    }
+    void restore()
+    return () => { cancelled = true }
+  }, [currentUserId, applyActiveQuestion, t])
+
+  useEffect(() => {
+    if (!currentUserId || !roomId) return
+    try { sessionStorage.setItem(`ilm-room:${currentUserId}`, roomId) } catch { /* Storage may be disabled. */ }
+  }, [currentUserId, roomId])
 
   useEffect(() => { roomRef.current = room }, [room])
 
-  const startCountdown = useCallback(() => {
-    setCountdown(3)
+  const startCountdown = useCallback((startingRoom: QuizRoom) => {
     if (countdownTimer.current) clearInterval(countdownTimer.current)
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          setViewState("quiz")
-          // Safety net: if the realtime INSERT for quiz_room_questions was
-          // missed (backgrounded tab, dropped socket, etc.), fetch directly.
-          if (roomId) {
-            getRoomState(roomId).then((state) => {
-              questionsRef.current = state.questions
-              applyActiveQuestion(state.room)
-            }).catch(() => setErrorMessage(t("somethingWentWrong")))
-          }
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    countdownTimer.current = timer
-  }, [roomId, applyActiveQuestion, t])
-
+    const start = startingRoom.startsAt ? Date.parse(startingRoom.startsAt) : Date.now() + 5000
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((start - Date.now()) / 1000))
+      setCountdown(remaining)
+      if (remaining > 0) return
+      if (countdownTimer.current) clearInterval(countdownTimer.current)
+      countdownTimer.current = null
+      void beginQuiz(startingRoom.id).catch(() => { if (roomRef.current?.id === startingRoom.id && roomRef.current.status === "starting") { setErrorMessage(t("failedStartQuiz")); setConnection("error") } })
+    }
+    countdownTimer.current = setInterval(tick, 250)
+    tick()
+  }, [t])
 
   // Subscribe to room updates
   useEffect(() => {
@@ -157,10 +212,22 @@ export default function MultiplayerPage() {
       onRoomChange: (updatedRoom) => {
         roomRef.current = updatedRoom
         setRoom(updatedRoom)
+        setIsHost(updatedRoom.hostId === currentUserId)
+        setRoomCode(updatedRoom.code)
+        if (updatedRoom.status === "waiting") {
+          if (viewStateRef.current !== "lobby") {
+            activeQuestionRef.current = null
+            setCurrentQuestion(null)
+            setShowResults(false)
+            setViewState("lobby")
+          }
+        }
+        if (updatedRoom.status === "in_progress") setViewState("quiz")
 
-        if (updatedRoom.status === "starting" && viewStateRef.current === "lobby") {
+        if (updatedRoom.status === "starting" && viewStateRef.current !== "countdown") {
           setViewState("countdown")
-          startCountdown()
+          viewStateRef.current = "countdown"
+          startCountdown(updatedRoom)
         }
 
         if (updatedRoom.status === "finished") {
@@ -170,6 +237,7 @@ export default function MultiplayerPage() {
 
         applyActiveQuestion(updatedRoom)
       },
+      onConnectionChange: setConnection,
       onPlayerChange: (updatedPlayers) => {
         setPlayers(updatedPlayers)
       },
@@ -184,7 +252,7 @@ export default function MultiplayerPage() {
     return () => {
       unsubscribe()
     }
-  }, [roomId, applyActiveQuestion, startCountdown])
+  }, [roomId, currentUserId, applyActiveQuestion, startCountdown])
 
 
   const handleCreateRoom = async (config: { difficulty: "easy" | "medium" | "hard"; maxPlayers: number; questionCount: number }) => {
@@ -223,7 +291,7 @@ export default function MultiplayerPage() {
       setRoomId(joinedRoom.id)
       setRoom(joinedRoom)
       setRoomCode(joinedRoom.code)
-      setIsHost(false)
+      setIsHost(joinedRoom.hostId === currentUserId)
       setViewState("lobby")
 
       // Refresh players
@@ -288,7 +356,7 @@ export default function MultiplayerPage() {
     setErrorMessage(null)
 
     try {
-      const finished = await nextQuestion(roomId)
+      const finished = await nextQuestion(roomId, questionNumber)
       if (finished) {
         setShowResults(true)
         setViewState("results")
@@ -300,15 +368,25 @@ export default function MultiplayerPage() {
   }
 
   const handleLeave = async () => {
-    if (countdownTimer.current) clearInterval(countdownTimer.current)
+    if (roomActionLock.current) return
+    roomActionLock.current = true
+    setRoomActionPending(true)
     if (roomId && currentUserId) {
       try {
         await leaveRoom(roomId, currentUserId)
       } catch (error) {
         console.error("Error leaving room:", error)
+        setErrorMessage(t("somethingWentWrong"))
+        roomActionLock.current = false
+        setRoomActionPending(false)
+        return
       }
     }
 
+    if (countdownTimer.current) clearInterval(countdownTimer.current)
+    roomActionLock.current = false
+    setRoomActionPending(false)
+    try { sessionStorage.removeItem(`ilm-room:${currentUserId}`) } catch { /* Storage may be disabled. */ }
     unsubscribeRef.current?.()
     setViewState("home")
     setRoomId(null)
@@ -366,8 +444,33 @@ export default function MultiplayerPage() {
       <PageHeader title={t("multiplayerQuiz")} subtitle={t("playTogetherHint")} icon={Swords} />
 
       {errorMessage && <p role="alert" className="mb-5 rounded-xl border border-error/30 bg-error/10 p-4 text-sm text-error">{errorMessage}</p>}
+      {restoring && <p role="status" className="mb-5 text-center text-on-surface-variant">{t("roomRestoring")}</p>}
+      {!roomId && invited && !restoring && <p role="status" className="mb-5 rounded-xl border border-primary/30 bg-primary/10 p-4 text-primary">{t("roomInvited")}</p>}
+      {roomId && <div role="status" className="mb-5 flex flex-wrap items-center justify-center gap-3 text-sm text-on-surface-variant">
+        <span className={`h-2 w-2 rounded-full ${connection === "connected" ? "bg-tertiary" : "bg-amber-400"}`} aria-hidden="true" />
+        <span>{t(connection === "connected" ? "roomConnected" : connection === "error" ? "roomRefreshFailed" : "roomReconnecting")}</span>
+        {connection !== "connected" && <PremiumButton variant="secondary" size="sm" disabled={roomActionPending} onClick={async () => {
+          if (!roomId || roomActionLock.current) return
+          roomActionLock.current = true; setRoomActionPending(true)
+          try {
+            let state = await getRoomState(roomId)
+            if (state.room.status === "starting" && state.room.startsAt && Date.parse(state.room.startsAt) <= Date.now()) {
+              await beginQuiz(roomId)
+              state = await getRoomState(roomId)
+            }
+            setErrorMessage(null)
+            questionsRef.current = state.questions; roomRef.current = state.room
+            setRoom(state.room); setPlayers(state.players); setIsHost(state.room.hostId === currentUserId)
+            applyActiveQuestion(state.room)
+            setViewState(state.room.status === "finished" ? "results" : state.room.status === "in_progress" ? "quiz" : "lobby")
+            setShowResults(state.room.status === "finished")
+            setConnection("connected")
+          } catch { setConnection("error") }
+          finally { roomActionLock.current = false; setRoomActionPending(false) }
+        }}>{t("tryAgain")}</PremiumButton>}
+      </div>}
       {/* Home State */}
-      {viewState === "home" && (
+      {viewState === "home" && !restoring && (
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -499,6 +602,7 @@ export default function MultiplayerPage() {
         <LiveQuiz
           question={{
             id: currentQuestion.id,
+            startedAt: currentQuestion.startedAt,
             questionText: currentQuestion.questionText,
             choices: currentQuestion.choices,
             timeLimit: currentQuestion.timeLimit,
@@ -515,6 +619,7 @@ export default function MultiplayerPage() {
           }))}
           currentUserId={currentUserId || ""}
           onAnswer={handleAnswer}
+          restoredAnswer={restoredAnswer}
           nextPending={roomActionPending}
           onNextQuestion={handleNextQuestion}
           isHost={isHost}

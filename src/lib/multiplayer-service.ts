@@ -1,7 +1,8 @@
 ﻿"use client"
 
+import { coalescedRefresh } from "./multiplayer-experience"
 import { createClient } from "@/lib/supabase/client"
-import { startMultiplayerQuiz, advanceQuestion } from "@/app/(app)/multiplayer/actions"
+import { startMultiplayerQuiz, advanceQuestion, beginMultiplayerQuiz } from "@/app/(app)/multiplayer/actions"
 import { submitMultiplayerAnswer } from "@/app/(app)/multiplayer/answer-actions"
 import type {
   QuizRoom,
@@ -59,7 +60,6 @@ function transformQuestion(db: QuizRoomQuestionDB): QuizRoomQuestion {
     questionId: db.question_id,
     questionText: db.question_text,
     choices: Array.isArray(db.choices) ? (db.choices as string[]) : (Object.values(db.choices) as string[]),
-    correctIndex: db.correct_index,
     timeLimit: db.time_limit,
     orderNum: db.order_num,
     startedAt: db.started_at,
@@ -160,9 +160,11 @@ export async function startQuiz(roomId: string): Promise<void> {
 }
 
 // Advance to the next question, or finish the quiz (host only) - uses server action
-export async function nextQuestion(roomId: string): Promise<boolean> {
-  return advanceQuestion(roomId)
+export async function nextQuestion(roomId: string, expectedQuestion: number): Promise<boolean> {
+  return advanceQuestion(roomId, expectedQuestion)
 }
+
+export const beginQuiz = beginMultiplayerQuiz
 
 // Submit an answer - uses server action
 export async function submitAnswer(
@@ -180,27 +182,19 @@ export async function getRoomState(roomId: string): Promise<{
 }> {
   const supabase = createClient()
 
-  const { data: room, error: roomError } = await supabase
-    .from("quiz_rooms")
-    .select("*")
-    .eq("id", roomId)
-    .single()
-
-  if (roomError || !room) throw new Error("Room not found")
-
-  const { data: players } = await supabase
-    .from("quiz_room_players")
-    .select("*")
-    .eq("room_id", roomId)
-    .order("joined_at")
-
-  // IMPORTANT: read through quiz_room_questions_safe, never the base table -
-  // the base table's correct_index column must never reach the browser.
-  const { data: questions } = await supabase
-    .from("quiz_room_questions_safe")
-    .select("id, room_id, question_id, question_text, choices, time_limit, order_num, started_at")
-    .eq("room_id", roomId)
-    .order("order_num")
+  const [roomResult, playerResult, questionResult] = await Promise.all([
+    supabase.from("quiz_rooms").select("*").eq("id", roomId).single(),
+    supabase.from("quiz_room_players").select("*").eq("room_id", roomId).order("joined_at"),
+    // Only the safe view can supply questions to the browser.
+    supabase.from("quiz_room_questions_safe")
+      .select("id, room_id, question_id, question_text, choices, time_limit, order_num, started_at")
+      .eq("room_id", roomId).order("order_num"),
+  ])
+  if (roomResult.error || !roomResult.data) throw new Error("Room not found")
+  if (playerResult.error || questionResult.error) throw new Error("Unable to refresh room")
+  const room = roomResult.data
+  const players = playerResult.data
+  const questions = questionResult.data
 
   return {
     room: transformRoom(room as QuizRoomDB),
@@ -209,69 +203,47 @@ export async function getRoomState(roomId: string): Promise<{
   }
 }
 
-// Subscribe to room changes
+export type RoomConnection = "connecting" | "connected" | "reconnecting" | "error"
+
+// A single snapshot handles event bursts and recovers missed events on reconnect.
 export function subscribeToRoom(
   roomId: string,
   callbacks: {
     onRoomChange?: (room: QuizRoom) => void
     onPlayerChange?: (players: QuizRoomPlayer[]) => void
     onQuestionChange?: (questions: QuizRoomQuestion[]) => void
-    onAnswerChange?: () => void
+    onConnectionChange?: (status: RoomConnection) => void
   }
 ) {
   const supabase = createClient()
-
-  const roomSubscription = supabase
-    .channel(`room:${roomId}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "quiz_rooms", filter: `id=eq.${roomId}` },
-      (payload) => {
-        if (payload.eventType === "UPDATE" && callbacks.onRoomChange) {
-          callbacks.onRoomChange(transformRoom(payload.new as QuizRoomDB))
-        }
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "quiz_room_players", filter: `room_id=eq.${roomId}` },
-      async () => {
-        if (callbacks.onPlayerChange) {
-          const { data } = await supabase
-            .from("quiz_room_players")
-            .select("*")
-            .eq("room_id", roomId)
-            .order("joined_at")
-          callbacks.onPlayerChange((data || []).map(transformPlayer))
-        }
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "quiz_room_questions", filter: `room_id=eq.${roomId}` },
-      async () => {
-        if (callbacks.onQuestionChange) {
-          // Re-fetch through the safe view - never read correct_index here.
-          const { data } = await supabase
-            .from("quiz_room_questions_safe")
-            .select("id, room_id, question_id, question_text, choices, time_limit, order_num, started_at")
-            .eq("room_id", roomId)
-            .order("order_num")
-          callbacks.onQuestionChange((data || []).map(transformQuestion))
-        }
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "quiz_room_answers", filter: `room_id=eq.${roomId}` },
-      () => {
-        callbacks.onAnswerChange?.()
-      }
-    )
-    .subscribe()
-
+  let disposed = false
+  const refresh = coalescedRefresh(() => getRoomState(roomId), (state) => {
+    // Questions first: the room callback can immediately resolve its active question.
+    callbacks.onQuestionChange?.(state.questions)
+    callbacks.onPlayerChange?.(state.players)
+    callbacks.onRoomChange?.(state.room)
+    callbacks.onConnectionChange?.("connected")
+  }, () => callbacks.onConnectionChange?.("error"))
+  callbacks.onConnectionChange?.("connecting")
+  const channel = supabase.channel(`room:${roomId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "quiz_rooms", filter: `id=eq.${roomId}` }, refresh.trigger)
+    .on("postgres_changes", { event: "*", schema: "public", table: "quiz_room_players", filter: `room_id=eq.${roomId}` }, refresh.trigger)
+    .on("postgres_changes", { event: "*", schema: "public", table: "quiz_room_questions", filter: `room_id=eq.${roomId}` }, refresh.trigger)
+    .subscribe((status) => {
+      if (disposed) return
+      if (status === "SUBSCRIBED") refresh.trigger()
+      else callbacks.onConnectionChange?.("reconnecting")
+    })
+  const onVisible = () => { if (document.visibilityState === "visible") refresh.trigger() }
+  const onOnline = () => refresh.trigger()
+  document.addEventListener("visibilitychange", onVisible)
+  window.addEventListener("online", onOnline)
   return () => {
-    supabase.removeChannel(roomSubscription)
+    disposed = true
+    refresh.dispose()
+    document.removeEventListener("visibilitychange", onVisible)
+    window.removeEventListener("online", onOnline)
+    void supabase.removeChannel(channel)
   }
 }
 
@@ -280,26 +252,29 @@ export function subscribeToRoom(
 // correctly and can't be spoofed. See supabase/migrations.
 export async function leaveRoom(roomId: string, _userId: string): Promise<void> {
   const supabase = createClient()
-  await supabase.rpc("leave_room_rpc", { p_room_id: roomId })
+  const { error } = await supabase.rpc("leave_room_rpc", { p_room_id: roomId })
+  if (error) throw error
 }
 
 // Toggle ready status
 export async function toggleReady(roomId: string, userId: string): Promise<void> {
   const supabase = createClient()
 
-  const { data: player } = await supabase
+  const { data: player, error: readError } = await supabase
     .from("quiz_room_players")
     .select("is_ready")
     .eq("room_id", roomId)
     .eq("user_id", userId)
     .single()
 
+  if (readError || !player) throw new Error("Player not found")
   if (player) {
-    await supabase
+    const { error } = await supabase
       .from("quiz_room_players")
       .update({ is_ready: !player.is_ready })
       .eq("room_id", roomId)
       .eq("user_id", userId)
+    if (error) throw error
   }
 }
 
@@ -324,4 +299,13 @@ export async function getCurrentRoom(userId: string): Promise<QuizRoom | null> {
   if (!room) return null
 
   return transformRoom(room as QuizRoomDB)
+}
+
+// Only this player's submitted choice/result is needed for refresh recovery.
+export async function getMyRoomAnswer(roomId: string, questionId: string, userId: string) {
+  const { data, error } = await createClient().from("quiz_room_answers")
+    .select("selected_index, is_correct").eq("room_id", roomId)
+    .eq("question_id", questionId).eq("user_id", userId).maybeSingle()
+  if (error) throw error
+  return data ? { selectedIndex: data.selected_index as number, isCorrect: data.is_correct as boolean } : null
 }
