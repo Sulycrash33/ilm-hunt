@@ -10,7 +10,11 @@ Storage. It accepts a trusted service credential or a verified admin session.
 The translation and reminder workers accept trusted service credentials only;
 the hadith tools also accept verified admins. Legacy service-role keys and the
 runtime's named modern secret keys are supported. Include `_shared/privileged-request.ts`
-in every edge-function deployment. Keep gateway JWT verification enabled for
+in deployments. A retained legacy key that differs from the runtime key is
+verified through Supabase Auth's service-only admin endpoint. Forged tokens,
+ordinary user credentials and Auth verification outages fail closed. Auth
+user data is discarded and never logged or returned.
+Keep gateway JWT verification enabled for
 the current legacy-key cron setup; modern secret-key requests need the gateway
 configuration documented by Supabase, with the in-function check still enabled.
 
@@ -33,7 +37,7 @@ category path. The game's share metadata now uses `https://ilmhunt.app`.
    anonymous denial, room isolation, answer-key denial, admin denial, repeated
    reset, other-player isolation and the content-trigger enqueue path.
 3. After explicit production approval, apply the migrations in filename order.
-   Upload the existing `scripts/question-bank/arena/bank.json` as
+   Upload the arena bank as
    `content-banks/arena/bank.json` using a trusted backend credential. The bucket
    must remain private, with no anonymous or authenticated object-read policy.
    Verify the stored object before deploying the updated importer.
@@ -58,7 +62,20 @@ account/project still needs to be connected to verify this PR's deployment.
 
 Typecheck, production build, engine, i18n, middleware, narration and edge
 authorization checks pass. The local production server also serves the public
-entry routes and protects the game/admin routes when signed out. Database
-rehearsal, live migrations and edge deployments require explicit production
-approval: automatic approval review rejected the rehearsal even with rollback.
-No signed-in browser journey has been verified in this session.
+entry routes and protects the game/admin routes when signed out.
+
+The owner explicitly approved the rehearsal and production rollout. The four
+migrations are applied and all five updated functions are active with gateway
+JWT verification enabled. The transaction rehearsal and post-deployment smoke
+both passed; zero QA accounts remain. Public anon-key calls to all five
+functions returned 401. The private bank was copied from the current database
+to preserve corrections: 5,246 questions. The authorized importer dry run
+returned HTTP 200, 5,246 already present, zero to insert and zero skipped.
+The scheduled translation batch after deployment returned HTTP 200, claimed
+12, wrote zero and released all 12 after rate limits.
+
+PR #97 remains a draft and is unmerged. Its Vercel preview check reports a
+failure; the connected build-log tool is unavailable, so its cause has not
+been established. No signed-in browser journey has been verified in this
+session. Gemini quota, repository visibility and the correct Vercel connection
+remain owner actions.

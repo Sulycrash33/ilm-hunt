@@ -9,6 +9,9 @@ const files = ['translate-questions', 'translate-hadiths', 'send-streak-reminder
 const env = { SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'test-service', SUPABASE_SECRET_KEYS: '{"default":"test-secret"}', GEMINI_API_KEY: 'test-model-key', VAPID_PUBLIC_KEY: 'test-public', VAPID_PRIVATE_KEY: 'test-private' };
 let effects = 0;
 let role = 'learner';
+let legacyChecks = 0;
+let legacyOutage = false;
+const legacyCredential = 'eyJ.test-service.signature';
 const client = {
   auth: { getUser: async (token) => ({ data: { user: token === 'test-user' ? { id: 'test-user-id' } : null }, error: null }) },
   from(name) {
@@ -27,7 +30,14 @@ function compile(file, overrides = {}) {
     exports, Request, Response, Headers, URL, console,
     Deno: { env: { get: (name) => env[name] }, serve: (fn) => { handler = fn; } },
     fetch: () => { effects++; throw new Error('Unexpected outbound request'); },
-    require: (name) => name.includes('_shared') ? helper : name.startsWith('jsr:') ? { createClient: () => client } : overrides[name] ?? { default: {} },
+    require: (name) => name.includes('_shared') ? helper : name.startsWith('jsr:') ? { createClient: (_url, key) => key === env.SUPABASE_SERVICE_ROLE_KEY ? client : {
+      auth: { admin: { listUsers: async (options) => {
+        legacyChecks++;
+        assert.equal(options.perPage, 1);
+        if (legacyOutage) throw new Error('Auth unavailable');
+        return key === legacyCredential ? { data: { users: [] }, error: null } : { data: { users: [] }, error: new Error('Denied') };
+      } } },
+    } } : overrides[name] ?? { default: {} },
   }, { filename: file });
   return { exports, handler };
 }
@@ -43,6 +53,13 @@ for (const file of files) {
   assert.equal(userResult.status, file === 'translate-questions' || file === 'send-streak-reminders' ? 401 : 403);
 }
 assert.equal(effects, 0, 'Denied requests caused privileged work');
+assert.equal(await helper.authorizePrivilegedRequest(request({ Authorization: `Bearer ${legacyCredential}` }), client), null);
+assert.equal((await helper.authorizePrivilegedRequest(request({ Authorization: 'Bearer eyJ.forged-service-role.signature' }), client)).status, 401);
+assert.equal((await helper.authorizePrivilegedRequest(request({ Authorization: 'Bearer eyJ.anonymous.signature' }), client)).status, 401);
+legacyOutage = true;
+assert.equal((await helper.authorizePrivilegedRequest(request({ Authorization: `Bearer ${legacyCredential}` }), client)).status, 401);
+legacyOutage = false;
+assert.equal(legacyChecks, 4, 'Legacy credentials were not verified by Auth');
 for (const headers of [{ Authorization: 'Bearer test-service' }, { apikey: 'test-secret' }]) {
   assert.equal(await helper.authorizePrivilegedRequest(request(headers), client), null);
 }

@@ -9,9 +9,9 @@ select gen_random_uuid() as actor, gen_random_uuid() as other_actor,
 grant select on qa_context to authenticated, anon;
 
 insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
-select actor, actor::text || '@example.invalid', '{"display_name":"QA learner"}', '{}' from qa_context
+select actor, actor::text || '@example.invalid', '{"display_name":"QA learner"}'::jsonb, '{}'::jsonb from qa_context
 union all
-select other_actor, other_actor::text || '@example.invalid', '{"display_name":"QA other"}', '{}' from qa_context;
+select other_actor, other_actor::text || '@example.invalid', '{"display_name":"QA other"}'::jsonb, '{}'::jsonb from qa_context;
 
 update public.profiles set coins = 500, total_xp = 500 where id = (select actor from qa_context);
 update public.profiles set coins = 900, total_xp = 900 where id = (select other_actor from qa_context);
