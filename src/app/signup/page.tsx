@@ -14,6 +14,7 @@ import { NamesOfAllahBackdrop } from "@/components/layout/NamesOfAllahBackdrop";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { parseRoomCode, roomInvitePath } from "@/lib/multiplayer-experience";
 import { getOnboardingSelections, clearOnboardingSelections } from "@/lib/onboarding-storage";
 
 export default function SignupPage() {
@@ -21,6 +22,9 @@ export default function SignupPage() {
   const { toast } = useToast();
   const { t, dir } = useLanguage();
   const [username, setUsername] = useState("");
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  useEffect(() => { setInviteCode(parseRoomCode(new URLSearchParams(window.location.search).get("room"))); }, []);
+  const authPath = (path: string) => inviteCode ? `${path}?room=${inviteCode}` : path;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -74,7 +78,7 @@ export default function SignupPage() {
         title: t("checkYourEmail"),
         description: t("checkYourEmailDesc"),
       });
-      router.push("/login");
+      router.push(authPath("/login"));
       return;
     }
 
@@ -97,7 +101,7 @@ export default function SignupPage() {
     // no idea the game is a nine-tier ladder — the dashboard shows them a row
     // of padlocks and leaves them to work it out. The explainer marks itself
     // seen on arrival, so this is a one-time detour.
-    router.push("/onboarding/how-it-works");
+    router.push(inviteCode ? roomInvitePath(inviteCode) : "/onboarding/how-it-works");
     router.refresh();
   }
 
@@ -106,7 +110,7 @@ export default function SignupPage() {
       <NamesOfAllahBackdrop />
       <div className="absolute top-4 start-4 z-20">
         <Button asChild variant="ghost" size="icon">
-          <Link href="/login">
+          <Link href={authPath("/login")}>
             <ArrowLeft className="h-6 w-6 rtl:rotate-180" />
             <span className="sr-only">{t("back")}</span>
           </Link>
@@ -182,7 +186,7 @@ export default function SignupPage() {
         </Card>
         <p className="text-center text-sm text-muted-foreground">
           {t("alreadyHaveAccount")}{" "}
-          <Link href="/login" className="font-semibold text-primary hover:underline">
+          <Link href={authPath("/login")} className="font-semibold text-primary hover:underline">
             {t("signIn")}
           </Link>
         </p>

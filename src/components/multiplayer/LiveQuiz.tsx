@@ -2,6 +2,7 @@
 
 import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
 
+import { questionDeadline } from "@/lib/multiplayer-experience"
 import { motion, AnimatePresence } from "framer-motion"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
@@ -15,6 +16,7 @@ interface Question {
   questionText: string
   choices: string[]
   timeLimit: number
+  startedAt?: string | null
 }
 
 interface Player {
@@ -26,6 +28,7 @@ interface Player {
 }
 
 interface LiveQuizProps {
+  restoredAnswer?: { selectedIndex: number; isCorrect: boolean } | null
   nextPending?: boolean
   question: Question
   questionNumber: number
@@ -44,6 +47,7 @@ interface LiveQuizProps {
 
 export function LiveQuiz({
   question,
+  restoredAnswer,
   nextPending = false,
   questionNumber,
   totalQuestions,
@@ -69,13 +73,13 @@ export function LiveQuiz({
 
   useEffect(() => {
     activeQuestion.current = question.id
-    deadline.current = Date.now() + timeLimit * 1000
-    answerLock.current = false
+    deadline.current = questionDeadline(question.startedAt, timeLimit)
+    answerLock.current = !!restoredAnswer
     setSubmitting(false)
-    setSelectedChoice(null)
-    setTimeRemaining(timeLimit)
-    setHasAnswered(false)
-  }, [question.id, timeLimit])
+    setSelectedChoice(restoredAnswer?.selectedIndex ?? null)
+    setTimeRemaining(Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000)))
+    setHasAnswered(!!restoredAnswer)
+  }, [question.id, question.startedAt, timeLimit, restoredAnswer])
 
   useEffect(() => {
     const timer = setInterval(() => {

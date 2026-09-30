@@ -3,7 +3,8 @@
 import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
 
 import { useState } from "react"
-import { Copy, Check } from "lucide-react"
+import { roomInvitePath } from "@/lib/multiplayer-experience"
+import { Copy, Check, Link as LinkIcon } from "lucide-react"
 import { motion } from "framer-motion"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
@@ -49,7 +50,7 @@ export function RoomLobby({
 }: RoomLobbyProps) {
   const { t } = useLanguage()
   const reduce = useGameReducedMotion()
-  const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | null>(null)
+  const [copyStatus, setCopyStatus] = useState<"copied" | "invite" | "failed" | null>(null)
   const allReady = players.every((p) => p.isReady || p.isHost)
 
   return (
@@ -62,7 +63,7 @@ export function RoomLobby({
       >
         <p className="text-on-surface-variant mb-2">{t("roomCode")}</p>
         <div className="inline-flex items-center gap-3 bg-surface-container-high px-6 py-3 rounded-xl border border-white/10">
-          <span className="font-mono text-3xl font-bold text-primary tracking-widest">
+          <span dir="ltr" className="font-mono text-3xl font-bold text-primary tracking-widest">
             {roomCode}
           </span>
           <button
@@ -76,9 +77,17 @@ export function RoomLobby({
         <p className="text-sm text-on-surface-variant mt-2">
           {t("shareCode")}
         </p>
+        <PremiumButton variant="secondary" className="mt-4" onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(new URL(roomInvitePath(roomCode), window.location.origin).href)
+            setCopyStatus("invite")
+          } catch { setCopyStatus("failed") }
+        }}>
+          <LinkIcon aria-hidden="true" className="h-4 w-4" /> {t("copyRoomInvite")}
+        </PremiumButton>
       </motion.div>
 
-      <p role="status" className="mb-4 text-center text-sm text-tertiary">{copyStatus === "copied" ? t("roomCodeCopied") : copyStatus === "failed" ? t("shareFailed") : ""}</p>
+      <p role="status" className="mb-4 text-center text-sm text-tertiary">{copyStatus === "copied" ? t("roomCodeCopied") : copyStatus === "invite" ? t("roomInviteCopied") : copyStatus === "failed" ? t("shareFailed") : ""}</p>
       {/* Players */}
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 20 }}

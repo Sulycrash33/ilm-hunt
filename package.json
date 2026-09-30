@@ -17,7 +17,9 @@
     "vapid:keys": "node scripts/vapid-keys.mjs",
     "test:middleware": "tsx scripts/check-middleware.ts",
     "test:edge-auth": "node scripts/check-edge-authorization.mjs",
-    "test:discovery": "tsx scripts/check-subject-discovery.ts"
+    "test:discovery": "tsx scripts/check-subject-discovery.ts",
+    "test:multiplayer": "tsx scripts/check-multiplayer.ts",
+    "test:multiplayer-db": "node scripts/check-multiplayer-db.mjs"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",
@@ -76,6 +78,7 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@electric-sql/pglite": "^0.5.8"
   }
 }
