@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState, useTransition } from "react"
+import type { TranslationWorkerStatus } from "@/app/(app)/admin/translations/worker-status"
 import {
   enqueueEverything,
   getTranslations,
@@ -23,12 +24,16 @@ export function TranslationsPageClient({
   failures,
   publishedQuestions,
   translationsWritten,
+  workerStatus,
+  workerError,
 }: {
   progress: QueueCell[]
   progressError: string | null
   failures: FailedRow[]
   publishedQuestions: number
   translationsWritten: number
+  workerStatus: TranslationWorkerStatus | null
+  workerError: string | null
 }) {
   const [message, setMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -95,6 +100,31 @@ export function TranslationsPageClient({
       {progressError && (
         <div className="glass-card p-3 mb-6 text-sm text-error">{progressError}</div>
       )}
+
+      <div className="glass-card p-5 mb-6" role="status">
+        <h2 className="font-headline-md text-headline-md text-on-surface mb-3">Latest translation batch</h2>
+        {workerError ? (
+          <p className="text-sm text-error">Could not read worker status: {workerError}</p>
+        ) : workerStatus ? (
+          <>
+            <p className="text-sm text-on-surface">
+              {workerStatus.written} written · {workerStatus.rateLimited} rate-limited · {workerStatus.failed} failed
+              {" "}out of {workerStatus.claimed} claimed jobs.
+            </p>
+            <p className="mt-2 text-xs text-on-surface-variant">
+              Batch reported {new Date(workerStatus.observedAt).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC")} (HTTP {workerStatus.httpStatus}).
+            </p>
+            {workerStatus.rateLimited > 0 && (
+              <p className="mt-3 text-sm text-primary">
+                The provider is limiting translation requests. Check this Gemini API key’s quota and billing
+                before increasing worker concurrency. Untranslated questions continue to use English.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-on-surface-variant">No recent batch summary is available. This does not confirm that the worker is healthy.</p>
+        )}
+      </div>
 
       <div className="glass-card p-5 mb-6">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">

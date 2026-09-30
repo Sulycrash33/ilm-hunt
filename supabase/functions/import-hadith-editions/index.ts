@@ -37,6 +37,7 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizePrivilegedRequest } from "../_shared/privileged-request.ts";
 
 /**
  * Pinned to the same tag migration 0050 used for the English.
@@ -257,6 +258,9 @@ Deno.serve(async (req) => {
   if (!url || !serviceKey) {
     return new Response(JSON.stringify({ error: "supabase env missing" }), { status: 500 });
   }
+  const supabase = createClient(url, serviceKey);
+  const denied = await authorizePrivilegedRequest(req, supabase, true);
+  if (denied) return denied;
 
   let edition = "";
   let dryRun = false;
@@ -278,8 +282,6 @@ Deno.serve(async (req) => {
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
-
-  const supabase = createClient(url, serviceKey);
 
   if (edition === "ha-hadeethenc") {
     return await importHausa(supabase, dryRun);

@@ -16,6 +16,7 @@
 
 import webpush from "npm:web-push@3.6.7"
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { authorizePrivilegedRequest } from "../_shared/privileged-request.ts"
 
 interface Candidate {
   o_endpoint: string
@@ -73,11 +74,15 @@ function message(lang: string, name: string, streak: number): { title: string; b
   }
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
   const publicKey = Deno.env.get("VAPID_PUBLIC_KEY")
   const privateKey = Deno.env.get("VAPID_PRIVATE_KEY")
   const supabaseUrl = Deno.env.get("SUPABASE_URL")
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  if (!supabaseUrl || !serviceKey) return Response.json({ error: "Supabase credentials missing" }, { status: 500 })
+  const supabase = createClient(supabaseUrl, serviceKey)
+  const denied = await authorizePrivilegedRequest(req, supabase)
+  if (denied) return denied
 
   if (!publicKey || !privateKey || !supabaseUrl || !serviceKey) {
     // Fail loudly rather than silently sending nothing every day for a month.
@@ -94,8 +99,6 @@ Deno.serve(async () => {
     publicKey,
     privateKey,
   )
-
-  const supabase = createClient(supabaseUrl, serviceKey)
 
   const { data, error } = await supabase.rpc("streak_reminder_candidates")
   if (error) {

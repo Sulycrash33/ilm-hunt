@@ -32,6 +32,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ilmhunt.app"),
   /**
    * Icons.
    *
@@ -67,7 +68,7 @@ export const metadata: Metadata = {
     title: "ILM Hunt - Premium Islamic Learning",
     description:
       "Premium gamified Islamic education platform for learning Quran, Hadith, and more.",
-    url: "https://ilmhunt.com",
+    url: "https://ilmhunt.app",
     siteName: "ILM Hunt",
     images: [
       {

@@ -342,18 +342,7 @@ export async function getModeQuestionPool(
 
   if (error || !data) return [];
 
-  return data.map((row: any) => {
-    const t = clampTier(row.tier ?? low);
-    return {
-      id: row.id as string,
-      text: row.question_text as string,
-      options: (row.choices ?? []) as string[],
-      difficulty: labelDifficulty(row.difficulty),
-      tier: t,
-      points: POINTS_BY_DIFFICULTY[row.difficulty as DbDifficulty] ?? 10,
-      timeLimit: timeLimitForTier(t),
-    };
-  });
+  return localiseQuestions(data);
 }
 
 export interface CategoryLevel {
