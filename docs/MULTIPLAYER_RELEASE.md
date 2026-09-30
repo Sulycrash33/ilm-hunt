@@ -60,22 +60,38 @@ is claimed. An isolated single player event now reads a complete snapshot.
   restored selected answer and an 18-second remainder on a 30-second question.
   Signed-out invitation redirected to login retaining the code.
 - Temporary preview route removed before the build. Screenshots are stored
-  locally, outside the repository. No production match or test account was created.
+  locally, outside the repository.
+- Approved production rehearsal passed inside one transaction, then rolled back
+  all routines, permissions, temporary auth identities and match data. Repeated
+  the complete match test against the deployed routines in a data-only rollback
+  transaction: host creation, joining, countdown, consecutive questions, server
+  scoring, retries, inactive/expired rejection, readiness, denied score/answer
+  writes, own-answer privacy, completion, restart and host transfer all passed.
+  No test users, rooms, players or answers remain.
+- Live catalog verification confirms all four RPCs deny anonymous execution;
+  score insert/update are denied and readiness update is allowed. The security
+  advisor adds only the two intended authenticated SECURITY DEFINER entry points.
+  Membership/host checks and fixed search paths were verified; existing advisor
+  findings remain. See https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable.
 
 ## Deployment order
 
-1. Apply `20260930160000_reliable_multiplayer_rounds.sql` to the Ilm Hunt
-   Supabase project, `ziblpvwiqzpjnkqjwodl`, before merging the app update.
+1. Completed: applied `20260930212819_reliable_multiplayer_rounds.sql` to the
+   Ilm Hunt Supabase project, `ziblpvwiqzpjnkqjwodl`, before the app merge.
    It adds begin/advance RPCs and replaces start/grading in place. It changes
    neither the content bank nor learning XP/ranks, and needs no edge deployment.
-2. Verify function privileges and test a complete two-account match, including
-   refresh, host departure, repeated clicks, restart and finishing.
+2. Completed: verified function privileges and the database match lifecycle.
+   After the app merge, smoke-test a two-browser match, including refresh,
+   host departure, repeated clicks, restart and finishing.
 3. Merge the app pull request and verify Vercel deployment for `ilm-hunt` and
    `www.ilmhunt.app`. Other Vercel projects are outside this release.
 
-The migration has not been applied to production. Live verification remains
-pending. Email-confirmation redirects and sending an invitation to another
+The migration was applied to production on 2026-09-30 at 21:28 UTC and verified
+against the live database. The app PR remains unmerged for the owner. A complete
+interactive match in two browser sessions remains a post-merge smoke check;
+database lifecycle tests used three disposable identities within rollback-only
+transactions. Email-confirmation redirects and sending an invitation to another
 person were not exercised; the tested auth flow covers login/signup navigation.
-Keep the app PR unmerged until the database step is complete. If a rollout
+If a rollout
 needs to be reversed, first stop new matches and preserve the deployed function
 definitions/grants; then coordinate the app and database rollback together.

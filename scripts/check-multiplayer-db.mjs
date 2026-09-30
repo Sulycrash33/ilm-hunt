@@ -9,7 +9,7 @@ const guest = '00000000-0000-0000-0000-000000000002';
 const stranger = '00000000-0000-0000-0000-000000000003';
 const room = '10000000-0000-0000-0000-000000000001';
 const other = '10000000-0000-0000-0000-000000000002';
-const migration = fs.readFileSync('supabase/migrations/20260930160000_reliable_multiplayer_rounds.sql', 'utf8');
+const migration = fs.readFileSync('supabase/migrations/20260930212819_reliable_multiplayer_rounds.sql', 'utf8');
 try {
   await db.exec(`
     create role anon; create role authenticated;
