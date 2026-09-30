@@ -1,4 +1,6 @@
-export interface ExperienceCopy {
+import { moreExperienceCopy, type MoreExperienceCopy } from "./more-experience-copy"
+
+export interface ExperienceCopy extends MoreExperienceCopy {
   smallSteps: string
   journeyInvitation: string
   discoverSubjects: string
@@ -30,6 +32,7 @@ export interface ExperienceCopy {
 
 export const experienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", ExperienceCopy> = {
   en: {
+    ...moreExperienceCopy.en,
     smallSteps: "Small steps. Lasting knowledge.",
     journeyInvitation: "Explore Islamic knowledge, find your rhythm, and celebrate what you learn.",
     discoverSubjects: "What will you discover today?",
@@ -58,6 +61,7 @@ export const experienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", Exp
     mainNavigation: "Main navigation",
   },
   ha: {
+    ...moreExperienceCopy.ha,
     smallSteps: "Ƙananan matakai. Ilimi mai ɗorewa.", journeyInvitation: "Bincika ilimin Musulunci, koyi a hankali, kuma yi farin ciki da abin da ka koya.",
     discoverSubjects: "Me za ka gano yau?", searchSubjects: "Nemo darussa", allSubjects: "Duk darussa", startedSubjects: "Ana ci gaba", newSubjects: "Ba a fara ba",
     noSubjectsFound: "Ba a sami darasi ba. Gwada wata kalma ko tacewa.", clearSearch: "Share bincike da tacewa", surpriseSubject: "Zaɓar mini darasi", exploreSubject: "Bincika darasi",
@@ -69,6 +73,7 @@ export const experienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", Exp
     playTogetherHint: "Ƙirƙiri ɗaki ko shiga tare da abokai don ƙalubale.", mainNavigation: "Babban menu",
   },
   fr: {
+    ...moreExperienceCopy.fr,
     smallSteps: "Petits pas. Savoir durable.", journeyInvitation: "Explorez le savoir islamique, trouvez votre rythme et célébrez vos découvertes.",
     discoverSubjects: "Que découvrirez-vous aujourd’hui ?", searchSubjects: "Rechercher un sujet", allSubjects: "Tous les sujets", startedSubjects: "En cours", newSubjects: "À découvrir",
     noSubjectsFound: "Aucun sujet trouvé. Essayez un autre mot ou filtre.", clearSearch: "Effacer la recherche et les filtres", surpriseSubject: "Choisir un sujet pour moi", exploreSubject: "Explorer le sujet",
@@ -80,6 +85,7 @@ export const experienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", Exp
     playTogetherHint: "Créez une salle ou rejoignez vos amis pour un défi commun.", mainNavigation: "Navigation principale",
   },
   ar: {
+    ...moreExperienceCopy.ar,
     smallSteps: "خطوات صغيرة. معرفة تدوم.", journeyInvitation: "اكتشف المعرفة الإسلامية، وتعلّم بإيقاعك، واحتفل بما تتعلّمه.",
     discoverSubjects: "ماذا ستكتشف اليوم؟", searchSubjects: "ابحث عن موضوع", allSubjects: "كل المواضيع", startedSubjects: "قيد التعلّم", newSubjects: "لم تبدأ بعد",
     noSubjectsFound: "لا توجد مواضيع مطابقة. جرّب كلمة أو تصفية أخرى.", clearSearch: "مسح البحث والتصفية", surpriseSubject: "اختر موضوعاً لي", exploreSubject: "استكشف الموضوع",
@@ -91,6 +97,7 @@ export const experienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", Exp
     playTogetherHint: "أنشئ غرفة أو انضم إلى أصدقائك في تحدٍّ مشترك.", mainNavigation: "التنقل الرئيسي",
   },
   ms: {
+    ...moreExperienceCopy.ms,
     smallSteps: "Langkah kecil. Ilmu berkekalan.", journeyInvitation: "Terokai ilmu Islam, belajar mengikut rentak anda dan raikan pengetahuan baharu.",
     discoverSubjects: "Apa yang akan anda temui hari ini?", searchSubjects: "Cari topik", allSubjects: "Semua topik", startedSubjects: "Sedang dipelajari", newSubjects: "Belum bermula",
     noSubjectsFound: "Tiada topik sepadan. Cuba perkataan atau penapis lain.", clearSearch: "Kosongkan carian dan penapis", surpriseSubject: "Pilih topik untuk saya", exploreSubject: "Terokai topik",
@@ -102,6 +109,7 @@ export const experienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", Exp
     playTogetherHint: "Cipta bilik atau sertai rakan untuk cabaran bersama.", mainNavigation: "Navigasi utama",
   },
   id: {
+    ...moreExperienceCopy.id,
     smallSteps: "Langkah kecil. Ilmu yang bertahan.", journeyInvitation: "Jelajahi pengetahuan Islam, temukan ritmemu, dan rayakan yang kamu pelajari.",
     discoverSubjects: "Apa yang akan kamu temukan hari ini?", searchSubjects: "Cari topik", allSubjects: "Semua topik", startedSubjects: "Sedang dipelajari", newSubjects: "Belum dimulai",
     noSubjectsFound: "Tidak ada topik yang cocok. Coba kata atau filter lain.", clearSearch: "Hapus pencarian dan filter", surpriseSubject: "Pilihkan topik untuk saya", exploreSubject: "Jelajahi topik",

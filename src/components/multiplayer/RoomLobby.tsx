@@ -1,5 +1,9 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { useState } from "react"
+import { Copy, Check } from "lucide-react"
 import { motion } from "framer-motion"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
@@ -21,6 +25,7 @@ interface Player {
 }
 
 interface RoomLobbyProps {
+  pending?: boolean
   roomCode: string
   players: Player[]
   currentUserId: string
@@ -33,6 +38,7 @@ interface RoomLobbyProps {
 
 export function RoomLobby({
   roomCode,
+  pending = false,
   players,
   currentUserId,
   isHost,
@@ -42,13 +48,15 @@ export function RoomLobby({
   isReady,
 }: RoomLobbyProps) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
+  const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | null>(null)
   const allReady = players.every((p) => p.isReady || p.isHost)
 
   return (
     <div className="max-w-2xl mx-auto">
       {/* Room Code */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={reduce ? false : { opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-8"
       >
@@ -58,12 +66,11 @@ export function RoomLobby({
             {roomCode}
           </span>
           <button
-            onClick={() => navigator.clipboard.writeText(roomCode)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            aria-label={t("copyRoomCode")}
+            onClick={async () => { try { await navigator.clipboard.writeText(roomCode); setCopyStatus("copied") } catch { setCopyStatus("failed") } }}
+            className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-white/10 transition-colors"
           >
-            <svg className="w-5 h-5 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
+            {copyStatus === "copied" ? <Check aria-hidden="true" className="h-5 w-5 text-tertiary" /> : <Copy aria-hidden="true" className="h-5 w-5" />}
           </button>
         </div>
         <p className="text-sm text-on-surface-variant mt-2">
@@ -71,9 +78,10 @@ export function RoomLobby({
         </p>
       </motion.div>
 
+      <p role="status" className="mb-4 text-center text-sm text-tertiary">{copyStatus === "copied" ? t("roomCodeCopied") : copyStatus === "failed" ? t("shareFailed") : ""}</p>
       {/* Players */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
@@ -90,7 +98,7 @@ export function RoomLobby({
             {players.map((player, index) => (
               <motion.div
                 key={player.id}
-                initial={{ opacity: 0, x: -20 }}
+                initial={reduce ? false : { opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
                 className={`flex items-center justify-between p-3 rounded-lg ${
@@ -102,8 +110,8 @@ export function RoomLobby({
                 <div className="flex items-center gap-3">
                   <PremiumAvatar avatarId={player.avatarId} size="sm" />
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-on-surface">{player.userName}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold break-all text-on-surface">{player.userName}</span>
                       {player.isHost && (
                         <PremiumBadge variant="warning" size="sm">{t("hostBadge")}</PremiumBadge>
                       )}
@@ -128,18 +136,20 @@ export function RoomLobby({
 
       {/* Actions */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="flex gap-3"
+        className="flex flex-wrap sm:flex-nowrap gap-3"
       >
-        <PremiumButton variant="secondary" fullWidth onClick={onLeave}>
+        <PremiumButton variant="secondary" fullWidth disabled={pending} onClick={onLeave}>
           {t("leaveRoom")}
         </PremiumButton>
         {!isHost && (
           <PremiumButton
             variant={isReady ? "secondary" : "primary"}
             fullWidth
+            disabled={pending}
+            aria-busy={pending}
             onClick={onToggleReady}
           >
             {isReady ? t("notReady") : t("readyUp")}
@@ -150,9 +160,10 @@ export function RoomLobby({
             variant="primary"
             fullWidth
             onClick={onStart}
-            disabled={!allReady || players.length < 2}
+            aria-busy={pending}
+            disabled={pending || !allReady || players.length < 2}
           >
-            {players.length < 2 ? t("needPlayers") : t("startQuizButton")}
+            {pending ? t("processingLabel") : players.length < 2 ? t("needPlayers") : t("startQuizButton")}
           </PremiumButton>
         )}
       </motion.div>

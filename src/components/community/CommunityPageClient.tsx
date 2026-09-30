@@ -1,8 +1,17 @@
 "use client"
 
+import { useAsyncAction } from "@/hooks/use-async-action"
+
+import { EmptyState } from "@/components/ui/empty-state"
+
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { PageHeader } from "@/components/layout/PageHeader"
+import { Users } from "lucide-react"
+
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { CircleCard } from "@/components/community/CircleCard"
 import { ForumTab } from "@/components/community/ForumTab"
@@ -26,6 +35,7 @@ export function CommunityPageClient({
   viewer: ForumViewerContext
 }) {
   const { t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [activeTab, setActiveTab] = useState<Tab>("circles")
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [name, setName] = useState("")
@@ -34,7 +44,7 @@ export function CommunityPageClient({
   const [weeklyGoal, setWeeklyGoal] = useState(500)
   const [error, setError] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
   const handleCreate = () => {
     setError(null)
@@ -53,38 +63,28 @@ export function CommunityPageClient({
   }
 
   const handleToggleMembership = (circle: StudyCircleView) => {
+    if (isPending) return
+    setError(null)
     setPendingId(circle.id)
     startTransition(async () => {
-      const result = circle.isMember ? await leaveStudyCircle(circle.id) : await joinStudyCircle(circle.id)
-      if (!result.success) setError(result.error ?? t("somethingWentWrong"))
-      setPendingId(null)
+      try {
+        const result = circle.isMember ? await leaveStudyCircle(circle.id) : await joinStudyCircle(circle.id)
+        if (!result.success) setError(result.error ?? t("somethingWentWrong"))
+      } finally { setPendingId(null) }
     })
   }
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back")}
-          </PremiumButton>
-        </Link>
-        <div className="text-center">
-          <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary">{t("communityTitle")}</h1>
-          <p className="text-on-surface-variant">{t("communitySubtitle")}</p>
-        </div>
-        <div className="w-20" />
-      </motion.div>
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+      <PageHeader title={t("communityTitle")} subtitle={t("communitySubtitle")} icon={Users} />
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex gap-2 mb-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex gap-2 mb-6 overflow-x-auto pb-2">
         {(["circles", "forum", "mentorship"] as Tab[]).map((tab) => (
           <button
             key={tab}
+            aria-pressed={activeTab === tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg font-label-caps text-label-caps uppercase tracking-widest transition-all duration-200 ${
+            className={`min-h-11 shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition-colors ${
               activeTab === tab ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
             }`}
           >
@@ -93,28 +93,30 @@ export function CommunityPageClient({
         ))}
       </motion.div>
 
+      {error && !showCreateForm && <p role="alert" className="mb-4 rounded-xl border border-error/30 bg-error/10 p-4 text-error">{error}</p>}
       {activeTab === "forum" ? (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <ForumTab viewer={viewer} />
         </motion.div>
       ) : activeTab === "mentorship" ? (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <MentorshipTab />
         </motion.div>
       ) : (
         <>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="flex justify-end mb-6">
+          <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="flex justify-end mb-6">
             <PremiumButton variant="primary" size="sm" onClick={() => setShowCreateForm((v) => !v)}>
               {showCreateForm ? t("cancel") : t("createACircle")}
             </PremiumButton>
           </motion.div>
 
           {showCreateForm && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass-card p-6 mb-6">
+            <motion.div initial={reduce ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass-card p-6 mb-6">
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-on-surface-variant mb-1 block">{t("circleNameLabel")}</label>
-                  <input
+                  <label htmlFor="circleNameLabel" className="text-sm text-on-surface-variant mb-1 block">{t("circleNameLabel")}</label>
+                  <input id="circleNameLabel"
+                    maxLength={80}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t("circleNamePlaceholder")}
@@ -122,8 +124,9 @@ export function CommunityPageClient({
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-on-surface-variant mb-1 block">{t("descriptionLabel")}</label>
-                  <input
+                  <label htmlFor="descriptionLabel" className="text-sm text-on-surface-variant mb-1 block">{t("descriptionLabel")}</label>
+                  <input id="descriptionLabel"
+                    maxLength={500}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder={t("circleDescPlaceholder")}
@@ -131,8 +134,8 @@ export function CommunityPageClient({
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-on-surface-variant mb-1 block">{t("maxMembersLabel")}</label>
-                  <input
+                  <label htmlFor="maxMembersLabel" className="text-sm text-on-surface-variant mb-1 block">{t("maxMembersLabel")}</label>
+                  <input id="maxMembersLabel"
                     type="number"
                     min={2}
                     max={200}
@@ -142,8 +145,8 @@ export function CommunityPageClient({
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-on-surface-variant mb-1 block">{t("circleGoalLabel")}</label>
-                  <input
+                  <label htmlFor="circleGoalLabel" className="text-sm text-on-surface-variant mb-1 block">{t("circleGoalLabel")}</label>
+                  <input id="circleGoalLabel"
                     type="number"
                     min={100}
                     max={100000}
@@ -153,8 +156,8 @@ export function CommunityPageClient({
                     className="w-32 px-4 py-2 rounded-lg bg-surface-container-high border border-white/10 text-on-surface"
                   />
                 </div>
-                {error && <p className="text-sm text-error">{error}</p>}
-                <PremiumButton variant="primary" onClick={handleCreate} disabled={isPending}>
+                {error && <p role="alert" className="rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
+                <PremiumButton variant="primary" onClick={handleCreate} disabled={isPending || !name.trim() || maxMembers < 2 || maxMembers > 200 || weeklyGoal < 100 || weeklyGoal > 100000}>
                   {isPending ? t("creatingLabel") : t("createCircleButton")}
                 </PremiumButton>
               </div>
@@ -162,16 +165,14 @@ export function CommunityPageClient({
           )}
 
           {circles.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-10 text-center">
-              <p className="text-on-surface-variant">{t("noCirclesYet")}</p>
-            </motion.div>
+            <EmptyState description={t("noCirclesYet")} icon={Users} action={<PremiumButton size="sm" onClick={() => setShowCreateForm(true)}>{t("createACircle")}</PremiumButton>} />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {circles.map((circle, index) => (
-                <motion.div key={circle.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+                <motion.div key={circle.id} initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
                   <CircleCard
                     circle={circle}
-                    pending={pendingId === circle.id}
+                    pending={isPending && pendingId !== null}
                     onToggleMembership={handleToggleMembership}
                     onError={setError}
                   />

@@ -1,5 +1,7 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
 import { motion } from "framer-motion"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
@@ -22,14 +24,17 @@ interface Player {
 }
 
 interface QuizResultsProps {
+  pending?: boolean
   players: Player[]
   currentUserId: string
   onPlayAgain: () => void
   onLeave: () => void
+  isHost?: boolean
 }
 
-export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: QuizResultsProps) {
+export function QuizResults({ players, pending = false, currentUserId, onPlayAgain, onLeave, isHost = false }: QuizResultsProps) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const winner = sortedPlayers[0]
   const currentUser = sortedPlayers.find((p) => p.id === currentUserId)
@@ -44,16 +49,18 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
     }
   }
 
+  if (!winner) return <PremiumCard className="p-6"><p>{t("loading")}</p><PremiumButton disabled={pending} onClick={onLeave}>{t("leaveRoom")}</PremiumButton></PremiumCard>
+
   return (
     <div className="max-w-2xl mx-auto">
       {/* Winner Celebration */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
+        initial={reduce ? false : { opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         className="text-center mb-8"
       >
         <motion.div
-          animate={{ rotate: [0, -10, 10, 0] }}
+          animate={reduce ? undefined : { rotate: [0, -10, 10, 0] }}
           transition={{ duration: 0.5, repeat: 2 }}
           className="text-6xl mb-4"
         >
@@ -69,17 +76,17 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
 
       {/* Podium */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="flex justify-center items-end gap-4 mb-8"
+        className="flex justify-center items-end gap-2 sm:gap-4 mb-8"
       >
         {/* 2nd Place */}
         {sortedPlayers[1] && (
-          <div className="text-center">
+          <div className="min-w-0 flex-1 text-center">
             <PremiumAvatar avatarId={sortedPlayers[1].avatarId} size="lg" />
             <p className="font-bold text-on-surface mt-2 text-sm">{sortedPlayers[1].userName}</p>
-            <p className="text-xs text-on-surface-variant">{sortedPlayers[1].score} {t("barakahShort")}</p>
+            <p className="text-xs text-on-surface-variant">{sortedPlayers[1].score} {t("score")}</p>
             <div className="w-20 h-20 bg-gradient-to-b from-medal-silver/20 to-transparent rounded-t-xl mt-2 flex items-center justify-center">
               <span className="text-3xl">🥈</span>
             </div>
@@ -87,15 +94,15 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
         )}
 
         {/* 1st Place */}
-        <div className="text-center">
+        <div className="min-w-0 flex-1 text-center">
           <motion.div
-            animate={{ y: [0, -5, 0] }}
+            animate={reduce ? undefined : { y: [0, -5, 0] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
             <PremiumAvatar avatarId={winner.avatarId} size="xl" ring ringColor="primary" />
           </motion.div>
           <p className="font-bold text-on-surface mt-2">{winner.userName}</p>
-          <p className="text-sm text-primary font-bold">{winner.score} {t("barakahShort")}</p>
+          <p className="text-sm text-primary font-bold">{winner.score} {t("score")}</p>
           <div className="w-24 h-28 bg-gradient-to-b from-warning/20 to-transparent rounded-t-xl mt-2 flex items-center justify-center">
             <span className="text-4xl">🥇</span>
           </div>
@@ -103,10 +110,10 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
 
         {/* 3rd Place */}
         {sortedPlayers[2] && (
-          <div className="text-center">
+          <div className="min-w-0 flex-1 text-center">
             <PremiumAvatar avatarId={sortedPlayers[2].avatarId} size="lg" />
             <p className="font-bold text-on-surface mt-2 text-sm">{sortedPlayers[2].userName}</p>
-            <p className="text-xs text-on-surface-variant">{sortedPlayers[2].score} {t("barakahShort")}</p>
+            <p className="text-xs text-on-surface-variant">{sortedPlayers[2].score} {t("score")}</p>
             <div className="w-20 h-16 bg-gradient-to-b from-warning-container/20 to-transparent rounded-t-xl mt-2 flex items-center justify-center">
               <span className="text-3xl">🥉</span>
             </div>
@@ -116,7 +123,7 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
 
       {/* Full Leaderboard */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
@@ -128,7 +135,7 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
             {sortedPlayers.map((player, index) => (
               <motion.div
                 key={player.id}
-                initial={{ opacity: 0, x: -20 }}
+                initial={reduce ? false : { opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 + index * 0.05 }}
                 className={`
@@ -154,8 +161,8 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-primary">{player.score} {t("barakahShort")}</p>
+                <div className="text-end">
+                  <p className="font-bold text-primary">{player.score} {t("score")}</p>
                   {player.streak >= 3 && (
                     <p className="text-xs text-tertiary">🔥 {t("bestStreakLabel", { streak: player.streak })}</p>
                   )}
@@ -169,7 +176,7 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
       {/* Your Performance */}
       {currentUser && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={reduce ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
@@ -184,7 +191,7 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
               </div>
               <div>
                 <p className="font-bold text-3xl text-tertiary">{currentUser.score}</p>
-                <p className="text-sm text-on-surface-variant">{t("totalXp")}</p>
+                <p className="text-sm text-on-surface-variant">{t("score")}</p>
               </div>
               <div>
                 <p className="font-bold text-3xl text-secondary">
@@ -201,17 +208,17 @@ export function QuizResults({ players, currentUserId, onPlayAgain, onLeave }: Qu
 
       {/* Actions */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
         className="flex gap-3"
       >
-        <PremiumButton variant="secondary" fullWidth onClick={onLeave}>
+        <PremiumButton variant="secondary" fullWidth disabled={pending} onClick={onLeave}>
           {t("leaveRoom")}
         </PremiumButton>
-        <PremiumButton variant="primary" fullWidth onClick={onPlayAgain}>
-          {t("playAgain")}
-        </PremiumButton>
+        {isHost && <PremiumButton variant="primary" fullWidth disabled={pending} aria-busy={pending} onClick={onPlayAgain}>
+          {pending ? t("processingLabel") : t("playAgain")}
+        </PremiumButton>}
       </motion.div>
     </div>
   )

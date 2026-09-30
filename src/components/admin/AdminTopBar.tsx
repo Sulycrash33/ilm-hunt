@@ -38,10 +38,10 @@ export function AdminTopBar() {
   const onDashboard = pathname === "/admin"
 
   return (
-    <div className="mb-6 flex items-center gap-2 border-b border-white/5 pb-3">
+    <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-white/5 pb-3">
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-on-surface hover:bg-white/5"
+        className="flex min-h-11 items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-on-surface hover:bg-white/5"
         aria-label="Go back"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -49,7 +49,7 @@ export function AdminTopBar() {
       </button>
       <button
         onClick={() => router.forward()}
-        className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-on-surface hover:bg-white/5"
+        className="flex min-h-11 items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-on-surface hover:bg-white/5"
         aria-label="Go forward"
       >
         Forward
@@ -59,7 +59,7 @@ export function AdminTopBar() {
       {!onDashboard && (
         <Link
           href="/admin"
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-on-surface-variant hover:bg-white/5"
+          className="flex min-h-11 items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-on-surface-variant hover:bg-white/5"
         >
           <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
           Dashboard

@@ -1,5 +1,6 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
 import { motion } from "framer-motion"
 import { ReactNode } from "react"
 
@@ -33,6 +34,7 @@ export function PremiumStat({
   trendValue,
   className = "",
 }: PremiumStatProps) {
+  const reduce = useGameReducedMotion()
   const trendColors = {
     up: "text-success",
     down: "text-error",
@@ -47,7 +49,7 @@ export function PremiumStat({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={reduce ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className={`text-center ${className}`}
     >
@@ -64,11 +66,11 @@ export function PremiumStat({
           {value}
         </span>
       )}
-      <p className="font-label-caps text-label-caps text-on-surface-variant/70 uppercase tracking-widest">
+      <p className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">
         {label}
       </p>
       {hint && (
-        <p className="mt-0.5 text-[11px] leading-tight text-on-surface-variant/55 tabular-nums">
+        <p className="mt-0.5 text-xs leading-tight text-on-surface-variant tabular-nums">
           {hint}
         </p>
       )}

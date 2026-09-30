@@ -629,3 +629,12 @@ html[data-calm-effects="true"] .interactive-card:active,
 html[data-calm-effects="true"] .glass-card-hover:hover,
 html[data-calm-effects="true"] .btn-primary:active,
 html[data-calm-effects="true"] .btn-secondary:active { transform: none !important; }
+
+/* Keep long content and controls usable across the player's language and device. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) { scroll-margin-block: 5rem; }
+:where(button, a, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
+:where(.glass-card, .page-hero) { min-width: 0; }
+:where(.glass-card p, .glass-card h2, .glass-card h3, .page-hero h1) { overflow-wrap: anywhere; }
+@media (hover: hover) and (pointer: fine) {
+  .glass-card:focus-within { border-color: rgba(240, 205, 109, 0.3); }
+}

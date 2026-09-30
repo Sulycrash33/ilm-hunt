@@ -1,5 +1,10 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { PageHeader } from "@/components/layout/PageHeader"
+import { Swords } from "lucide-react"
+
 import { motion } from "framer-motion"
 import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
@@ -42,6 +47,13 @@ type ViewState = "home" | "creating" | "joining" | "lobby" | "countdown" | "quiz
 
 export default function MultiplayerPage() {
   const { t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [joining, setJoining] = useState(false)
+  const joinLock = useRef(false)
+  const roomActionLock = useRef(false)
+  const [roomActionPending, setRoomActionPending] = useState(false)
+  const roomRef = useRef<QuizRoom | null>(null)
   const [viewState, setViewState] = useState<ViewState>("home")
   const [roomCode, setRoomCode] = useState("")
   const [joinCode, setJoinCode] = useState("")
@@ -59,6 +71,9 @@ export default function MultiplayerPage() {
   const [timeRemaining, setTimeRemaining] = useState(30)
   const [hasAnswered, setHasAnswered] = useState(false)
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null)
+
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => () => { if (countdownTimer.current) clearInterval(countdownTimer.current) }, [])
 
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -84,6 +99,8 @@ export default function MultiplayerPage() {
   // Keep the latest fetched questions around so the room-status callback
   // (which fires independently of the questions callback) can look up the
   // active question without an extra round trip.
+  const activeQuestionRef = useRef<string | null>(null)
+  const answerLock = useRef(false)
   const questionsRef = useRef<QuizRoomQuestion[]>([])
   const viewStateRef = useRef<ViewState>("home")
   useEffect(() => {
@@ -93,7 +110,10 @@ export default function MultiplayerPage() {
   const applyActiveQuestion = useCallback((updatedRoom: QuizRoom) => {
     if (updatedRoom.status !== "in_progress") return
     const active = questionsRef.current.find((q) => q.orderNum === updatedRoom.currentQuestion)
-    if (!active) return
+    if (!active || activeQuestionRef.current === active.id) return
+    activeQuestionRef.current = active.id
+    answerLock.current = false
+    setErrorMessage(null)
     setCurrentQuestion(active)
     setQuestionNumber(updatedRoom.currentQuestion)
     setTotalQuestions(updatedRoom.questionCount)
@@ -102,12 +122,40 @@ export default function MultiplayerPage() {
     setLastAnswerCorrect(null)
   }, [])
 
+  useEffect(() => { roomRef.current = room }, [room])
+
+  const startCountdown = useCallback(() => {
+    setCountdown(3)
+    if (countdownTimer.current) clearInterval(countdownTimer.current)
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          setViewState("quiz")
+          // Safety net: if the realtime INSERT for quiz_room_questions was
+          // missed (backgrounded tab, dropped socket, etc.), fetch directly.
+          if (roomId) {
+            getRoomState(roomId).then((state) => {
+              questionsRef.current = state.questions
+              applyActiveQuestion(state.room)
+            }).catch(() => setErrorMessage(t("somethingWentWrong")))
+          }
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    countdownTimer.current = timer
+  }, [roomId, applyActiveQuestion, t])
+
+
   // Subscribe to room updates
   useEffect(() => {
     if (!roomId) return
 
     const unsubscribe = subscribeToRoom(roomId, {
       onRoomChange: (updatedRoom) => {
+        roomRef.current = updatedRoom
         setRoom(updatedRoom)
 
         if (updatedRoom.status === "starting" && viewStateRef.current === "lobby") {
@@ -127,7 +175,7 @@ export default function MultiplayerPage() {
       },
       onQuestionChange: (updatedQuestions) => {
         questionsRef.current = updatedQuestions
-        if (room) applyActiveQuestion(room)
+        if (roomRef.current) applyActiveQuestion(roomRef.current)
       },
     })
 
@@ -136,33 +184,13 @@ export default function MultiplayerPage() {
     return () => {
       unsubscribe()
     }
-  }, [roomId, applyActiveQuestion])
+  }, [roomId, applyActiveQuestion, startCountdown])
 
-  const startCountdown = useCallback(() => {
-    setCountdown(3)
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          setViewState("quiz")
-          // Safety net: if the realtime INSERT for quiz_room_questions was
-          // missed (backgrounded tab, dropped socket, etc.), fetch directly.
-          if (roomId) {
-            getRoomState(roomId).then((state) => {
-              questionsRef.current = state.questions
-              applyActiveQuestion(state.room)
-            })
-          }
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }, [roomId, applyActiveQuestion])
 
   const handleCreateRoom = async (config: { difficulty: "easy" | "medium" | "hard"; maxPlayers: number; questionCount: number }) => {
+    setErrorMessage(null)
     if (!currentUserId || !currentUserName) {
-      alert(t("loadingProfileWait"))
+      setErrorMessage(t("loadingProfileWait"))
       return
     }
 
@@ -180,12 +208,15 @@ export default function MultiplayerPage() {
       setPlayers(state.players)
     } catch (error) {
       console.error("Error creating room:", error)
-      alert(t("failedCreateRoom"))
+      setErrorMessage(t("failedCreateRoom"))
     }
   }
 
   const handleJoinRoom = async () => {
-    if (!joinCode.trim() || !currentUserId || !currentUserName) return
+    if (!/^[A-Z0-9]{6}$/.test(joinCode) || !currentUserId || !currentUserName || joinLock.current) return
+    joinLock.current = true
+    setJoining(true)
+    setErrorMessage(null)
 
     try {
       const joinedRoom = await joinRoom({ roomCode: joinCode.toUpperCase() })
@@ -200,23 +231,30 @@ export default function MultiplayerPage() {
       setPlayers(state.players)
     } catch (error) {
       console.error("Error joining room:", error)
-      alert(error instanceof Error ? error.message : t("failedJoinRoom"))
-    }
+      setErrorMessage(error instanceof Error ? error.message : t("failedJoinRoom"))
+    } finally { joinLock.current = false; setJoining(false) }
   }
 
   const handleStartQuiz = async () => {
     if (!roomId || !isHost) return
+    if (roomActionLock.current) return
+    roomActionLock.current = true
+    setRoomActionPending(true)
+    setErrorMessage(null)
 
     try {
       await startQuiz(roomId)
     } catch (error) {
       console.error("Error starting quiz:", error)
-      alert(t("failedStartQuiz"))
-    }
+      setErrorMessage(t("failedStartQuiz"))
+    } finally { roomActionLock.current = false; setRoomActionPending(false) }
   }
 
-  const handleAnswer = async (selectedIndex: number, timeTaken: number) => {
-    if (!roomId || !currentQuestion || hasAnswered) return
+  const handleAnswer = async (selectedIndex: number, timeTaken: number): Promise<boolean> => {
+    if (!roomId || !currentQuestion || hasAnswered || answerLock.current) return false
+    answerLock.current = true
+    setErrorMessage(null)
+    const answeringQuestionId = currentQuestion.id
 
     try {
       setHasAnswered(true)
@@ -229,15 +267,25 @@ export default function MultiplayerPage() {
         },
         currentUserId!
       )
+      if (activeQuestionRef.current !== answeringQuestionId) return true
       setLastAnswerCorrect(result.isCorrect)
+      return true
     } catch (error) {
       console.error("Error submitting answer:", error)
+      if (activeQuestionRef.current !== answeringQuestionId) return false
+      answerLock.current = false
       setHasAnswered(false)
+      setErrorMessage(t("somethingWentWrong"))
+      return false
     }
   }
 
   const handleNextQuestion = async () => {
     if (!roomId || !isHost) return
+    if (roomActionLock.current) return
+    roomActionLock.current = true
+    setRoomActionPending(true)
+    setErrorMessage(null)
 
     try {
       const finished = await nextQuestion(roomId)
@@ -247,10 +295,12 @@ export default function MultiplayerPage() {
       }
     } catch (error) {
       console.error("Error moving to next question:", error)
-    }
+      setErrorMessage(t("somethingWentWrong"))
+    } finally { roomActionLock.current = false; setRoomActionPending(false) }
   }
 
   const handleLeave = async () => {
+    if (countdownTimer.current) clearInterval(countdownTimer.current)
     if (roomId && currentUserId) {
       try {
         await leaveRoom(roomId, currentUserId)
@@ -266,22 +316,34 @@ export default function MultiplayerPage() {
     setRoom(null)
     setPlayers([])
     setCurrentQuestion(null)
+    activeQuestionRef.current = null
+    answerLock.current = false
+    setErrorMessage(null)
     setQuestionNumber(0)
     setShowResults(false)
   }
 
   const handleToggleReady = async () => {
     if (!roomId || !currentUserId) return
+    if (roomActionLock.current) return
+    roomActionLock.current = true
+    setRoomActionPending(true)
+    setErrorMessage(null)
 
     try {
       await toggleReady(roomId, currentUserId)
     } catch (error) {
       console.error("Error toggling ready:", error)
-    }
+      setErrorMessage(t("somethingWentWrong"))
+    } finally { roomActionLock.current = false; setRoomActionPending(false) }
   }
 
   const handlePlayAgain = async () => {
     if (!roomId || !isHost) return
+    if (roomActionLock.current) return
+    roomActionLock.current = true
+    setRoomActionPending(true)
+    setErrorMessage(null)
 
     try {
       const supabase = createClient()
@@ -289,43 +351,27 @@ export default function MultiplayerPage() {
       if (error) throw error
 
       setShowResults(false)
+      activeQuestionRef.current = null
+      answerLock.current = false
       setViewState("lobby")
     } catch (error) {
       console.error("Error resetting game:", error)
-    }
+      setErrorMessage(t("somethingWentWrong"))
+    } finally { roomActionLock.current = false; setRoomActionPending(false) }
   }
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
-      >
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back")}
-          </PremiumButton>
-        </Link>
-        <div className="text-center">
-          <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary">
-            {t("multiplayerQuiz")}
-          </h1>
-          <p className="text-on-surface-variant">{t("competeWithFriends")}</p>
-        </div>
-        <div className="w-20" />
-      </motion.div>
+      <PageHeader title={t("multiplayerQuiz")} subtitle={t("playTogetherHint")} icon={Swords} />
 
+      {errorMessage && <p role="alert" className="mb-5 rounded-xl border border-error/30 bg-error/10 p-4 text-sm text-error">{errorMessage}</p>}
       {/* Home State */}
       {viewState === "home" && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={reduce ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md mx-auto space-y-6"
+          className="max-w-4xl mx-auto grid gap-5 md:grid-cols-2"
         >
           {/* Create Room */}
           <PremiumCard hover className="p-6" onClick={() => setViewState("creating")}>
@@ -348,18 +394,20 @@ export default function MultiplayerPage() {
             <div className="flex gap-2">
               <input
                 type="text"
+                aria-label={t("roomCode")}
+                autoComplete="off"
                 placeholder={t("enterRoomCode")}
                 value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                className="flex-1 px-4 py-3 bg-surface-container-high rounded-lg border border-white/5 text-on-surface font-mono text-center text-lg tracking-widest placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary uppercase"
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                className="min-w-0 flex-1 px-4 py-3 bg-surface-container-high rounded-lg border border-white/5 text-on-surface font-mono text-center text-lg tracking-widest placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary uppercase"
                 maxLength={6}
               />
               <PremiumButton
                 variant="primary"
                 onClick={handleJoinRoom}
-                disabled={joinCode.length < 6 || !currentUserId}
+                disabled={joinCode.length < 6 || !currentUserId || joining}
               >
-                {t("joinLabel")}
+                {joining ? t("processingLabel") : t("joinLabel")}
               </PremiumButton>
             </div>
           </PremiumCard>
@@ -391,6 +439,7 @@ export default function MultiplayerPage() {
 
       {/* Creating Room Modal */}
       <CreateRoomModal
+        error={errorMessage}
         isOpen={viewState === "creating"}
         onClose={() => setViewState("home")}
         onCreateRoom={handleCreateRoom}
@@ -410,6 +459,7 @@ export default function MultiplayerPage() {
           }))}
           currentUserId={currentUserId || ""}
           isHost={isHost}
+          pending={roomActionPending}
           onStart={handleStartQuiz}
           onLeave={handleLeave}
           onToggleReady={handleToggleReady}
@@ -420,21 +470,21 @@ export default function MultiplayerPage() {
       {/* Countdown */}
       {viewState === "countdown" && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center min-h-[60vh]"
         >
           <motion.div
             key={countdown}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: [0, 1.5, 1], opacity: [0, 1, 1] }}
+            initial={reduce ? false : { scale: 0, opacity: 0 }}
+            animate={reduce ? { scale: 1, opacity: 1 } : { scale: [0, 1.5, 1], opacity: [0, 1, 1] }}
             transition={{ duration: 0.5 }}
             className="text-8xl font-bold text-primary mb-4"
           >
             {countdown}
           </motion.div>
           <motion.p
-            initial={{ opacity: 0 }}
+            initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
             className="text-2xl text-on-surface-variant"
@@ -465,6 +515,7 @@ export default function MultiplayerPage() {
           }))}
           currentUserId={currentUserId || ""}
           onAnswer={handleAnswer}
+          nextPending={roomActionPending}
           onNextQuestion={handleNextQuestion}
           isHost={isHost}
           showResults={showResults}
@@ -485,8 +536,10 @@ export default function MultiplayerPage() {
             streak: p.streak,
           }))}
           currentUserId={currentUserId || ""}
+          pending={roomActionPending}
           onPlayAgain={handlePlayAgain}
           onLeave={handleLeave}
+          isHost={isHost}
         />
       )}
     </div>

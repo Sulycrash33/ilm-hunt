@@ -42,8 +42,8 @@ export function LogoutButton({ className, showLabel = false }: LogoutButtonProps
       disabled={loading}
       aria-label={t("logout")}
       className={
-        className ??
-        "flex items-center gap-2 rounded-full border border-white/10 bg-surface-container-high/60 px-3 py-1.5 text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error disabled:opacity-60"
+        "min-h-11 " + (className ??
+        "flex items-center gap-2 rounded-full border border-white/10 bg-surface-container-high/60 px-3 py-1.5 text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error disabled:opacity-60")
       }
     >
       {loading ? (

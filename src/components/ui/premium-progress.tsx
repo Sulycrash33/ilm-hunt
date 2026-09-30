@@ -1,5 +1,7 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+import { useLanguage } from "@/contexts/LanguageContext"
 import { motion } from "framer-motion"
 
 interface PremiumProgressProps {
@@ -21,7 +23,11 @@ export function PremiumProgress({
   label,
   className = "",
 }: PremiumProgressProps) {
-  const percentage = Math.min((value / max) * 100, 100)
+  const reduce = useGameReducedMotion()
+  const { t } = useLanguage()
+  const safeMax = Number.isFinite(max) && max > 0 ? max : 1
+  const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(value, safeMax)) : 0
+  const percentage = (safeValue / safeMax) * 100
 
   const sizes = {
     sm: "h-1",
@@ -41,14 +47,14 @@ export function PremiumProgress({
       {showLabel && (
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-on-surface-variant">
-            {label || `${Math.round(percentage)}%`}
+            {label || t("overallProgress")}
           </span>
           <span className="text-sm font-bold text-on-surface">
             {Math.round(percentage)}%
           </span>
         </div>
       )}
-      <div
+      <div role="progressbar" aria-label={label ?? t("overallProgress")} aria-valuemin={0} aria-valuemax={safeMax} aria-valuenow={safeValue}
         className={`
           w-full ${sizes[size]}
           bg-surface-container-highest
@@ -56,9 +62,9 @@ export function PremiumProgress({
         `}
       >
         <motion.div
-          initial={{ width: 0 }}
+          initial={reduce ? false : { width: 0 }}
           animate={{ width: `${percentage}%` }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
+          transition={{ duration: reduce ? 0 : 0.8, ease: "easeOut" }}
           className={`
             h-full
             bg-gradient-to-r ${variants[variant]}

@@ -1,5 +1,7 @@
 "use client";
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext";
+import { PremiumButton } from "@/components/ui/premium-button";
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -26,6 +28,7 @@ interface ReviewRunnerProps {
 export function ReviewRunner({ questions, status, lifelinePrices }: ReviewRunnerProps) {
   const [started, setStarted] = useState(false);
   const { t, dir } = useLanguage();
+  const reduce = useGameReducedMotion();
 
   if (started) {
     return (
@@ -55,9 +58,9 @@ export function ReviewRunner({ questions, status, lifelinePrices }: ReviewRunner
       </header>
 
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={reduce ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="space-y-8 rounded-xl bg-surface-container p-8 text-center"
+        className="page-hero space-y-6 p-5 sm:p-8 text-center"
       >
         <div className="space-y-3">
           <div
@@ -72,6 +75,7 @@ export function ReviewRunner({ questions, status, lifelinePrices }: ReviewRunner
           </p>
         </div>
 
+        {nothingDue && <div><PremiumButton href="/quiz">{t("exploreSubject")}</PremiumButton></div>}
         <div className="mx-auto grid max-w-md grid-cols-2 gap-3">
           <Stat value={status.due} label={t("reviewDue")} tone="primary" />
           <Stat value={status.scheduled} label={t("reviewScheduled")} tone="muted" />

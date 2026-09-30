@@ -1,7 +1,13 @@
 "use client"
 
+import { useAsyncAction } from "@/hooks/use-async-action"
+
+import { EmptyState } from "@/components/ui/empty-state"
+
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
 import { motion } from "framer-motion"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { CheckCircle2, GraduationCap, ShieldAlert } from "lucide-react"
 import { PremiumCard } from "@/components/ui/premium-card"
 import { PremiumButton } from "@/components/ui/premium-button"
@@ -33,6 +39,7 @@ import {
  */
 export function MentorshipTab() {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [ctx, setCtx] = useState<MentorshipContext | null>(null)
   const [questions, setQuestions] = useState<MentorQuestionView[] | null>(null)
   const [mentors, setMentors] = useState<MentorProfileView[]>([])
@@ -40,7 +47,7 @@ export function MentorshipTab() {
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
   const load = () =>
     startTransition(async () => {
@@ -70,7 +77,7 @@ export function MentorshipTab() {
     })
   }
 
-  if (ctx === null) return <p className="text-center text-on-surface-variant">{t("loading")}</p>
+  if (ctx === null) return error ? <div role="alert" className="glass-card p-5 space-y-3"><p className="text-error">{error}</p><PremiumButton onClick={() => { setError(null); load() }} disabled={isPending}>{t("tryAgain")}</PremiumButton></div> : <p role="status" className="text-center text-on-surface-variant">{t("loading")}</p>
 
   return (
     <div className="space-y-6">
@@ -106,11 +113,12 @@ export function MentorshipTab() {
       </div>
 
       {asking && (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass-card space-y-3 p-6">
+        <motion.div initial={reduce ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass-card space-y-3 p-6">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t("mentorQuestionPlaceholder")}
+                aria-label={t("mentorQuestionPlaceholder")}
             maxLength={160}
             className="w-full rounded-lg border border-white/10 bg-surface-container-high px-4 py-2 text-on-surface"
           />
@@ -118,12 +126,13 @@ export function MentorshipTab() {
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder={t("mentorDetailPlaceholder")}
+                aria-label={t("mentorDetailPlaceholder")}
             rows={4}
             maxLength={4000}
             className="w-full rounded-lg border border-white/10 bg-surface-container-high px-4 py-2 text-on-surface"
           />
-          {error && <p className="text-sm text-error">{error}</p>}
-          <PremiumButton variant="primary" onClick={submitQuestion}>
+          {error && <p role="alert" className="rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
+          <PremiumButton variant="primary" onClick={submitQuestion} disabled={isPending || !title.trim() || !body.trim()}>
             {t("mentorAskQuestion")}
           </PremiumButton>
         </motion.div>
@@ -132,9 +141,7 @@ export function MentorshipTab() {
       {questions === null ? (
         <p className="text-center text-on-surface-variant">{t("loading")}</p>
       ) : questions.length === 0 ? (
-        <div className="glass-card p-10 text-center">
-          <p className="text-on-surface-variant">{t("mentorNoQuestions")}</p>
-        </div>
+        <EmptyState description={t("mentorNoQuestions")} icon={GraduationCap} action={<PremiumButton size="sm" onClick={() => setAsking(true)}>{t("mentorAskQuestion")}</PremiumButton>} />
       ) : (
         <div className="space-y-4">
           {questions.map((q) => (
@@ -148,11 +155,12 @@ export function MentorshipTab() {
 
 function MentorApplication({ ctx, onChanged }: { ctx: MentorshipContext; onChanged: () => void }) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [open, setOpen] = useState(false)
   const [bio, setBio] = useState(ctx.myApplication?.bio ?? "")
   const [credentials, setCredentials] = useState(ctx.myApplication?.credentials ?? "")
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
   const statusKey = {
     pending: "mentorStatusPending",
@@ -175,12 +183,12 @@ function MentorApplication({ ctx, onChanged }: { ctx: MentorshipContext; onChang
           {app.reviewNote && (
             <p className="text-xs text-on-surface-variant">{t("mentorReviewNote", { note: app.reviewNote })}</p>
           )}
-          <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs text-primary hover:underline">
+          <button type="button" onClick={() => setOpen((v) => !v)} className="min-h-11 text-xs text-primary hover:underline">
             {open ? t("cancel") : t("editLabel")}
           </button>
         </div>
       ) : (
-        <button type="button" onClick={() => setOpen((v) => !v)} className="text-sm font-medium text-primary hover:underline">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="min-h-11 text-sm font-medium text-primary hover:underline">
           {open ? t("cancel") : t("mentorApply")}
         </button>
       )}
@@ -188,27 +196,27 @@ function MentorApplication({ ctx, onChanged }: { ctx: MentorshipContext; onChang
       {open && (
         <div className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-sm text-on-surface-variant">{t("mentorBioLabel")}</label>
-            <textarea
+            <label htmlFor="mentorBioLabel" className="mb-1 block text-sm text-on-surface-variant">{t("mentorBioLabel")}</label>
+            <textarea id="mentorBioLabel"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               placeholder={t("mentorBioPlaceholder")}
-              rows={3}
+rows={3}
               maxLength={2000}
               className="w-full rounded-lg border border-white/10 bg-surface-container-high px-3 py-2 text-sm text-on-surface"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-on-surface-variant">{t("mentorCredentialsLabel")}</label>
-            <input
+            <label htmlFor="mentorCredentialsLabel" className="mb-1 block text-sm text-on-surface-variant">{t("mentorCredentialsLabel")}</label>
+            <input id="mentorCredentialsLabel"
               value={credentials}
               onChange={(e) => setCredentials(e.target.value)}
               placeholder={t("mentorCredentialsPlaceholder")}
-              maxLength={2000}
+maxLength={2000}
               className="w-full rounded-lg border border-white/10 bg-surface-container-high px-3 py-2 text-sm text-on-surface"
             />
           </div>
-          {error && <p className="text-sm text-error">{error}</p>}
+          {error && <p role="alert" className="rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
           <PremiumButton
             variant="primary"
             size="sm"
@@ -243,11 +251,12 @@ function QuestionCard({
   onChanged: () => void
 }) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [open, setOpen] = useState(false)
   const [answers, setAnswers] = useState<MentorAnswerView[] | null>(null)
   const [draft, setDraft] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
   useEffect(() => {
     if (open && answers === null) {
@@ -259,7 +268,7 @@ function QuestionCard({
 
   return (
     <PremiumCard className="p-6">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="w-full text-left">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="min-h-11 w-full text-start">
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-lg font-bold text-on-surface">{question.title}</h3>
           <PremiumBadge variant={question.answered ? "success" : "secondary"} size="sm">
@@ -345,11 +354,12 @@ function QuestionCard({
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder={t("mentorAnswerPlaceholder")}
+                aria-label={t("mentorAnswerPlaceholder")}
                   rows={4}
                   maxLength={8000}
                   className="w-full rounded-lg border border-white/10 bg-surface-container-high px-3 py-2 text-sm text-on-surface"
                 />
-                {error && <p className="text-sm text-error">{error}</p>}
+                {error && <p role="alert" className="rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
                 <PremiumButton
                   variant="primary"
                   size="sm"

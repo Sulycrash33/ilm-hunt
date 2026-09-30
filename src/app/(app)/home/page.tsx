@@ -81,7 +81,7 @@ export default function HomePage() {
 
       {/* Top Header */}
       <motion.header
-        initial={{ opacity: 0, y: -20 }}
+        initial={reduceMotion ? false : { opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="fixed top-0 left-0 right-0 z-50 bg-surface/60 backdrop-blur-xl border-b border-white/5 h-16"
       >
@@ -258,7 +258,7 @@ export default function HomePage() {
             say what they measure. Here the card now says one thing: how much
             of the journey has been cleared. */}
         <motion.section
-          initial={{ opacity: 0, y: 12 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
           className="glass-card p-4 sm:p-5"
@@ -331,7 +331,7 @@ export default function HomePage() {
             strings; only the invitation changed. */}
         <motion.div
           variants={cardVariants}
-          initial="hidden"
+          initial={reduceMotion ? false : "hidden"}
           animate="visible"
           className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4"
         >
@@ -349,7 +349,7 @@ export default function HomePage() {
           ].map(({ href, label, Icon, tint, fg }, i) => (
             <motion.div
               key={href}
-              initial={{ opacity: 0, y: 14 }}
+              initial={reduceMotion ? false : { opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 * i, duration: 0.35 }}
             >

@@ -1,7 +1,13 @@
 "use client"
 
+import { useAsyncAction } from "@/hooks/use-async-action"
+
+import { EmptyState } from "@/components/ui/empty-state"
+
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
 import { motion } from "framer-motion"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { BadgeCheck, EyeOff, MessageSquare, Pin, ShieldAlert } from "lucide-react"
 import { PremiumCard } from "@/components/ui/premium-card"
 import { PremiumButton } from "@/components/ui/premium-button"
@@ -30,15 +36,16 @@ import {
  */
 export function ForumTab({ viewer }: { viewer: ForumViewerContext }) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [topics, setTopics] = useState<ForumTopicView[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [composing, setComposing] = useState(false)
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
-  const refresh = () => startTransition(async () => setTopics(await getForumTopics()))
+  const refresh = () => { setError(null); startTransition(async () => setTopics(await getForumTopics())) }
 
   useEffect(() => {
     startTransition(async () => setTopics(await getForumTopics()))
@@ -73,41 +80,41 @@ export function ForumTab({ viewer }: { viewer: ForumViewerContext }) {
       </div>
 
       {composing && (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass-card space-y-3 p-6">
+        <motion.div initial={reduce ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="glass-card space-y-3 p-6">
           <div>
-            <label className="mb-1 block text-sm text-on-surface-variant">{t("forumTitleLabel")}</label>
-            <input
+            <label htmlFor="forumTitleLabel" className="mb-1 block text-sm text-on-surface-variant">{t("forumTitleLabel")}</label>
+            <input id="forumTitleLabel"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("forumTitlePlaceholder")}
-              maxLength={160}
+maxLength={160}
               className="w-full rounded-lg border border-white/10 bg-surface-container-high px-4 py-2 text-on-surface"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-on-surface-variant">{t("forumBodyLabel")}</label>
-            <textarea
+            <label htmlFor="forumBodyLabel" className="mb-1 block text-sm text-on-surface-variant">{t("forumBodyLabel")}</label>
+            <textarea id="forumBodyLabel"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder={t("forumBodyPlaceholder")}
-              rows={5}
+rows={5}
               maxLength={8000}
               className="w-full rounded-lg border border-white/10 bg-surface-container-high px-4 py-2 text-on-surface"
             />
           </div>
-          {error && <p className="text-sm text-error">{error}</p>}
-          <PremiumButton variant="primary" onClick={submitTopic} disabled={isPending}>
-            {t("forumPost")}
+          {error && <p role="alert" className="rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
+          <PremiumButton variant="primary" onClick={submitTopic} disabled={isPending || !title.trim() || !body.trim()}>
+            {isPending ? t("processingLabel") : t("forumPost")}
           </PremiumButton>
         </motion.div>
       )}
 
+      {error && !composing && <div role="alert" className="rounded-xl border border-error/30 bg-error/10 p-4 space-y-3"><p>{error}</p><PremiumButton size="sm" onClick={refresh} disabled={isPending}>{t("tryAgain")}</PremiumButton></div>}
+
       {topics === null ? (
         <p className="text-center text-on-surface-variant">{t("loading")}</p>
       ) : topics.length === 0 ? (
-        <div className="glass-card p-10 text-center">
-          <p className="text-on-surface-variant">{t("forumNoTopics")}</p>
-        </div>
+        <EmptyState description={t("forumNoTopics")} icon={MessageSquare} action={<PremiumButton size="sm" onClick={() => setComposing(true)}>{t("forumNewTopic")}</PremiumButton>} />
       ) : (
         <div className="space-y-4">
           {topics.map((topic) => (
@@ -140,10 +147,11 @@ function TopicCard({
   onChanged: () => void
 }) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [replies, setReplies] = useState<ForumReplyView[] | null>(null)
   const [draft, setDraft] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
   useEffect(() => {
     if (expanded && replies === null) {
@@ -170,7 +178,7 @@ function TopicCard({
   return (
     <PremiumCard className="p-6">
       <div className="flex items-start justify-between gap-3">
-        <button type="button" onClick={onToggle} className="flex-1 text-left">
+        <button type="button" onClick={onToggle} aria-expanded={expanded} className="min-h-11 flex-1 text-start">
           <div className="flex items-center gap-2">
             {topic.pinned && <Pin className="h-4 w-4 text-tertiary" aria-hidden="true" />}
             <h3 className="text-lg font-bold text-on-surface">{topic.title}</h3>
@@ -260,11 +268,12 @@ function TopicCard({
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={t("forumReplyPlaceholder")}
+                aria-label={t("forumReplyPlaceholder")}
                 rows={3}
                 maxLength={8000}
                 className="w-full rounded-lg border border-white/10 bg-surface-container-high px-3 py-2 text-sm text-on-surface"
               />
-              {error && <p className="text-sm text-error">{error}</p>}
+              {error && <p role="alert" className="rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
               <PremiumButton variant="primary" size="sm" onClick={submitReply} disabled={isPending || !draft.trim()}>
                 <MessageSquare className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                 {t("forumReply")}
@@ -294,19 +303,24 @@ export function PostControls({
   onChanged: () => void
 }) {
   const { t } = useLanguage()
-  const [, startTransition] = useTransition()
+  const reduce = useGameReducedMotion()
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useAsyncAction(() => setError(t("somethingWentWrong")))
 
   return (
     <div className="flex flex-wrap items-center gap-3">
+      {error && <p role="alert" className="w-full text-sm text-error">{error}</p>}
       {!isMine && <ReportButton kind={kind} id={id} />}
 
       {isMine && status === "visible" && (
         <button
           type="button"
-          className="text-xs text-on-surface-variant hover:text-error"
+          disabled={isPending}
+          className="min-h-11 text-xs text-on-surface-variant hover:text-error"
           onClick={() =>
             startTransition(async () => {
-              await editOwnPost({ kind, id, remove: true })
+              const result = await editOwnPost({ kind, id, remove: true })
+              if (!result.success) { setError(result.error ?? t("somethingWentWrong")); return }
               onChanged()
             })
           }
@@ -318,10 +332,12 @@ export function PostControls({
       {isModerator && (
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-xs text-error hover:underline"
+          disabled={isPending}
+          className="inline-flex min-h-11 items-center gap-1 text-xs text-error hover:underline"
           onClick={() =>
             startTransition(async () => {
-              await moderateContent({ kind, id, status: status === "hidden" ? "visible" : "hidden" })
+              const result = await moderateContent({ kind, id, status: status === "hidden" ? "visible" : "hidden" })
+              if (!result.success) { setError(result.error ?? t("somethingWentWrong")); return }
               onChanged()
             })
           }
