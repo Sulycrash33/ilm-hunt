@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Package } from "lucide-react";
+import { Coins, Package, Zap, Brain, SkipForward, Gem, Timer, LoaderCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { Translations } from "@/lib/i18n";
@@ -19,12 +19,12 @@ interface LifelineDockProps {
 
 /** Display metadata per lifeline. The cost is NOT here — it comes from the
  * database via `getLifelinePrices`, so the price shown is the price charged. */
-const LIFELINE_META: Record<string, { icon: string; nameKey: keyof Translations; descKey: keyof Translations }> = {
-  "fifty-fifty": { icon: "⚡", nameKey: "lifelineFiftyFifty", descKey: "lifelineFiftyFiftyDesc" },
-  "ask-imam": { icon: "🧠", nameKey: "lifelineAskImam", descKey: "lifelineAskImamDesc" },
-  skip: { icon: "⏭️", nameKey: "lifelineSkip", descKey: "lifelineSkipDesc" },
-  "double-points": { icon: "💎", nameKey: "lifelineDoublePoints", descKey: "lifelineDoublePointsDesc" },
-  "time-boost": { icon: "⏰", nameKey: "lifelineTimeBoost", descKey: "lifelineTimeBoostDesc" },
+const LIFELINE_META: Record<string, { icon: LucideIcon; nameKey: keyof Translations; descKey: keyof Translations }> = {
+  "fifty-fifty": { icon: Zap, nameKey: "lifelineFiftyFifty", descKey: "lifelineFiftyFiftyDesc" },
+  "ask-imam": { icon: Brain, nameKey: "lifelineAskImam", descKey: "lifelineAskImamDesc" },
+  skip: { icon: SkipForward, nameKey: "lifelineSkip", descKey: "lifelineSkipDesc" },
+  "double-points": { icon: Gem, nameKey: "lifelineDoublePoints", descKey: "lifelineDoublePointsDesc" },
+  "time-boost": { icon: Timer, nameKey: "lifelineTimeBoost", descKey: "lifelineTimeBoostDesc" },
 };
 
 export function LifelineDock({ prices, coins, used, locked, pending, onUse }: LifelineDockProps) {
@@ -47,6 +47,7 @@ export function LifelineDock({ prices, coins, used, locked, pending, onUse }: Li
           const inStock = lifeline.owned > 0;
           const affordable = inStock || coins >= lifeline.cost;
           const isPending = pending === lifeline.id;
+          const Icon = meta.icon;
           const disabled = isUsed || !affordable || locked || pending !== null;
 
           return (
@@ -54,6 +55,7 @@ export function LifelineDock({ prices, coins, used, locked, pending, onUse }: Li
               key={lifeline.id}
               type="button"
               disabled={disabled}
+              aria-busy={isPending}
               onClick={() => onUse(lifeline.id)}
               title={t(meta.descKey)}
               aria-label={
@@ -69,12 +71,10 @@ export function LifelineDock({ prices, coins, used, locked, pending, onUse }: Li
                   : inStock
                     ? "border-primary/40 bg-surface-container hover:border-primary hover:bg-surface-container-high"
                     : "border-tertiary/30 bg-surface-container hover:border-tertiary hover:bg-surface-container-high",
-                isPending && "animate-pulse",
+
               )}
             >
-              <span className="text-xl" aria-hidden="true">
-                {meta.icon}
-              </span>
+              {isPending ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Icon className="h-5 w-5" aria-hidden="true" />}
               <span className="text-center text-xs font-medium leading-tight text-on-surface">
                 {t(meta.nameKey)}
               </span>

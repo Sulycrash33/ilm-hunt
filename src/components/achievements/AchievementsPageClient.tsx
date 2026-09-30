@@ -1,5 +1,10 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { PageHeader } from "@/components/layout/PageHeader"
+import { Trophy, Zap, CalendarDays } from "lucide-react"
+
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { useState } from "react"
@@ -39,6 +44,7 @@ export function AchievementsPageClient({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("achievements")
   const { t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
 
   const unlockedCount = achievements.filter((a) => a.unlocked).length
 
@@ -59,24 +65,10 @@ export function AchievementsPageClient({
     .reduce((sum, a) => sum + RARITY_POINTS[a.rarity], 0)
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back")}
-          </PremiumButton>
-        </Link>
-        <div className="text-center">
-          <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary">{t("achievementsAndChallenges")}</h1>
-          <p className="text-on-surface-variant">{t("trackProgress")}</p>
-        </div>
-        <div className="w-20" />
-      </motion.div>
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+      <PageHeader title={t("achievementsAndChallenges")} subtitle={t("trackProgress")} icon={Trophy} />
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6 mb-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6 mb-8">
         <div className="grid grid-cols-2 gap-4 text-center">
           <div>
             <p className="font-bold text-3xl text-primary">{unlockedCount}/{achievements.length}</p>
@@ -95,16 +87,17 @@ export function AchievementsPageClient({
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-6 overflow-x-auto pb-2">
         {(["achievements", "challenges"] as Tab[]).map((tab) => (
           <button
             key={tab}
+            aria-pressed={activeTab === tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-label-caps text-label-caps uppercase tracking-widest transition-all duration-200 ${
+            className={`flex items-center gap-2 min-h-11 shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition-colors ${
               activeTab === tab ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
             }`}
           >
-            {tab === "achievements" ? "🏆" : "⚡"}
+            {tab === "achievements" ? <Trophy aria-hidden="true" className="h-4 w-4" /> : <Zap aria-hidden="true" className="h-4 w-4" />}
             {tab === "achievements" ? t("achievements") : t("challenges")}
           </button>
         ))}
@@ -116,11 +109,11 @@ export function AchievementsPageClient({
             thing on this page that asks the player to do something. */}
         <EarnedChestShelf chests={earnedChests} />
         {achievements.length === 0 ? (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 text-center">
+          <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 text-center">
             <p className="text-on-surface-variant">{t("noAchievementsYet")}</p>
           </motion.div>
         ) : (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-10">
+          <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-10">
             {milestones.length > 0 && (
               <section className="space-y-4">
                 <h2 className="font-headline-md text-headline-md text-on-surface">{t("milestoneTrophies")}</h2>
@@ -138,7 +131,7 @@ export function AchievementsPageClient({
 
             <section className="space-y-4">
               <h2 className="font-headline-md text-headline-md text-on-surface">{t("collectionBadges")}</h2>
-              <div className="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4 md:grid-cols-6">
+              <div className="grid grid-cols-2 min-[380px]:grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4 md:grid-cols-6">
                 {badges.map((a) => (
                   <AchievementBadge key={a.slug} achievement={a} />
                 ))}
@@ -148,7 +141,7 @@ export function AchievementsPageClient({
         )}
         </>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           {!todayChallenge ? (
             <div className="glass-card p-8 text-center">
               <p className="text-on-surface-variant">{t("noDailyChallengeToday")}</p>
@@ -158,7 +151,7 @@ export function AchievementsPageClient({
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-tertiary/20 to-tertiary-container/20 flex items-center justify-center">
-                    <span className="text-3xl">📅</span>
+                    <CalendarDays aria-hidden="true" className="h-8 w-8 text-tertiary" />
                   </div>
                   <div>
                     <h3 className="font-bold text-on-surface text-lg">{t("todaysChallenge")}</h3>
@@ -175,9 +168,7 @@ export function AchievementsPageClient({
                   <span className="font-bold text-tertiary">+{todayChallenge.rewardCoins} {t("coinsWord").toLowerCase()}, +{todayChallenge.rewardXp} {t("barakahShort")}</span>
                 </div>
                 {!todayChallenge.completed && (
-                  <Link href="/quiz">
-                    <PremiumButton variant="primary" size="sm">{t("startChallenge")}</PremiumButton>
-                  </Link>
+                  <PremiumButton href="/play/daily" variant="primary" size="sm">{t("startChallenge")}</PremiumButton>
                 )}
               </div>
             </PremiumCard>

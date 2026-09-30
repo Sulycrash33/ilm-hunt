@@ -1,5 +1,12 @@
 "use client"
 
+import { EmptyState } from "@/components/ui/empty-state"
+
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { PageHeader } from "@/components/layout/PageHeader"
+import { Trophy } from "lucide-react"
+
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { useState } from "react"
@@ -36,31 +43,22 @@ export function LeaderboardPageClient({
 }) {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>("allTime")
   const { t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
   const entries = timeFrame === "allTime" ? allTime : weekly
   const myRank = timeFrame === "allTime" ? myAllTimeRank : myWeeklyRank
   const podium = entries.slice(0, 3)
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm" className="mb-4">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("backToDashboard")}
-          </PremiumButton>
-        </Link>
-        <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary">{t("communityLeaderboard")}</h1>
-        <p className="text-on-surface-variant mt-2">{t("seeWhoIsLeading")}</p>
-      </motion.div>
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+      <PageHeader title={t("communityLeaderboard")} subtitle={t("seeWhoIsLeading")} icon={Trophy} />
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex justify-center gap-2 mb-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex justify-center gap-2 mb-8">
         {(["allTime", "weekly"] as TimeFrame[]).map((frame) => (
           <button
             key={frame}
+            aria-pressed={timeFrame === frame}
             onClick={() => setTimeFrame(frame)}
-            className={`px-4 py-2 rounded-lg font-label-caps text-label-caps uppercase tracking-widest transition-all duration-200 ${
+            className={`min-h-11 shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition-colors ${
               timeFrame === frame ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
             }`}
           >
@@ -70,22 +68,18 @@ export function LeaderboardPageClient({
       </motion.div>
 
       {entries.length === 0 ? (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 text-center">
-          <p className="text-on-surface-variant">
-            {timeFrame === "weekly" ? t("noWeeklyXpYet") : t("noPlayersYet")}
-          </p>
-        </motion.div>
+        <EmptyState description={timeFrame === "weekly" ? t("noWeeklyXpYet") : t("noPlayersYet")} icon={Trophy} action={<PremiumButton href="/quiz">{t("exploreSubject")}</PremiumButton>} />
       ) : (
         <>
           {podium.length === 3 && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex justify-center items-end gap-4 mb-12">
+            <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex justify-center items-end gap-2 sm:gap-4 mb-12">
               <PodiumSlot
                 entry={podium[1]}
                 place={2}
                 avatarClass="w-20 h-20 border-medal-silver bg-gradient-to-br from-medal-silver/40 to-medal-silver/25"
                 badgeClass="bg-medal-silver text-on-medal-silver"
                 nameClass="text-sm"
-                plinthClass="w-24 h-24 bg-gradient-to-b from-medal-silver/20 to-transparent"
+                plinthClass="w-full max-w-24 mx-auto h-24 bg-gradient-to-b from-medal-silver/20 to-transparent"
               />
 
               <PodiumSlot
@@ -95,7 +89,7 @@ export function LeaderboardPageClient({
                 avatarClass="w-24 h-24 border-medal-gold bg-gradient-to-br from-medal-gold/40 to-medal-gold/25 shadow-[0_0_30px_rgba(242,201,76,0.5)]"
                 badgeClass="bg-medal-gold text-on-medal-gold"
                 nameClass=""
-                plinthClass="w-28 h-32 bg-gradient-to-b from-medal-gold/20 to-transparent"
+                plinthClass="w-full max-w-28 mx-auto h-32 bg-gradient-to-b from-medal-gold/20 to-transparent"
               />
 
               <PodiumSlot
@@ -104,12 +98,12 @@ export function LeaderboardPageClient({
                 avatarClass="w-20 h-20 border-medal-bronze bg-gradient-to-br from-medal-bronze/40 to-medal-bronze/25"
                 badgeClass="bg-medal-bronze text-on-medal-bronze"
                 nameClass="text-sm"
-                plinthClass="w-24 h-16 bg-gradient-to-b from-medal-bronze/20 to-transparent"
+                plinthClass="w-full max-w-24 mx-auto h-16 bg-gradient-to-b from-medal-bronze/20 to-transparent"
               />
             </motion.div>
           )}
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <LeaderboardCard
               entries={entries.map((e) => ({
                 rank: e.rank,
@@ -126,7 +120,7 @@ export function LeaderboardPageClient({
       )}
 
       {myRank && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="mt-8 glass-card p-6 border border-primary/30">
+        <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="mt-8 glass-card p-6 border border-primary/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary-container/20 flex items-center justify-center border-2 border-primary">
@@ -137,7 +131,7 @@ export function LeaderboardPageClient({
                 <p className="text-sm text-on-surface-variant">{t("keepLearning")}</p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-end">
               <p className="font-bold text-primary text-xl">{myRank.xp.toLocaleString()} {t("barakahShort")}</p>
             </div>
           </div>
@@ -175,6 +169,7 @@ function PodiumSlot({
   plinthClass: string
 }) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const circle = (
     <div className={`relative rounded-full border-4 mx-auto mb-2 overflow-visible ${avatarClass}`}>
       <PremiumAvatar
@@ -191,15 +186,15 @@ function PodiumSlot({
   )
 
   return (
-    <div className="text-center">
+    <div className="min-w-0 flex-1 text-center">
       {float ? (
-        <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2, repeat: Infinity }}>
+        <motion.div animate={reduce ? undefined : { y: [0, -5, 0] }} transition={{ duration: 2, repeat: Infinity }}>
           {circle}
         </motion.div>
       ) : (
         circle
       )}
-      <p className={`font-bold text-on-surface ${nameClass}`}>{entry.name.split(" ")[0]}</p>
+      <p className={`break-all font-bold text-on-surface ${nameClass}`}>{entry.name.split(" ")[0]}</p>
       <p className={`text-on-surface-variant ${nameClass ? "text-xs" : "text-sm"}`}>
         {entry.xp.toLocaleString()} {t("barakahShort")}
       </p>

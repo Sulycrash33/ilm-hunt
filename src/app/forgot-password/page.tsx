@@ -66,10 +66,10 @@ export default function ForgotPasswordPage() {
   return (
     <div dir={dir} className="relative flex min-h-[100dvh] items-center justify-center bg-background p-4">
       <NamesOfAllahBackdrop />
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 start-4 z-20">
         <Button asChild variant="ghost" size="icon">
           <Link href="/login">
-            <ArrowLeft className="h-6 w-6" />
+            <ArrowLeft className="h-6 w-6 rtl:rotate-180" />
             <span className="sr-only">{t("back")}</span>
           </Link>
         </Button>

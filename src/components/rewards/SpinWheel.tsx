@@ -1,5 +1,6 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
 import { useEffect, useRef, useState } from "react"
 import { playCue } from "@/lib/sound"
 import { playHaptic } from "@/lib/haptics"
@@ -65,6 +66,7 @@ export function SpinWheel({
   onSettled: () => void
 }) {
   const { t } = useLanguage()
+  const reduced = useGameReducedMotion()
   const [rotation, setRotation] = useState(0)
   const frame = useRef<number | null>(null)
   /**
@@ -93,9 +95,6 @@ export function SpinWheel({
     const from = rotation
     const to = Math.ceil(from / 360) * 360 + 360 * turns - centre
 
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
     // No spin under reduced motion. A five-second rotation is precisely the
     // kind of large sustained movement the preference exists to suppress, so
@@ -144,7 +143,7 @@ export function SpinWheel({
     // `rotation` is read to start from wherever the wheel came to rest, but it
     // must not retrigger the animation on every frame it sets.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spinToken, targetIndex, arc, count])
+  }, [spinToken, targetIndex, arc, count, reduced])
 
   if (count === 0) return null
 

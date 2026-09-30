@@ -1,7 +1,13 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { EmptyState } from "@/components/ui/empty-state"
+import { EffectsToggle } from "@/components/profile/EffectsToggle"
+import { LayoutDashboard, Trophy, ChartNoAxesColumn, History, UserRound, CalendarDays } from "lucide-react"
 import { useState } from "react"
 import { PremiumCard } from "@/components/ui/premium-card"
 import { PremiumButton } from "@/components/ui/premium-button"
@@ -64,6 +70,7 @@ export function ProfilePageClient({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("overview")
   const { locale, setLocale, t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
   const { profile, currentRank, nextRank, totalAttempts, correctCount, accuracyPct, categories, achievements, globalRank, recentAttempts } = stats
   const RankEmblem = emblemForRank(currentRank?.slug)
 
@@ -74,25 +81,16 @@ export function ProfilePageClient({
   const joinDate = new Date(joinedAt).toLocaleDateString(locale, { month: "short", year: "numeric" })
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "overview", label: t("overview"), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" /></svg> },
-    { id: "achievements", label: t("achievements"), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" /></svg> },
-    { id: "statistics", label: t("statistics"), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" /></svg> },
-    { id: "activity", label: t("activity"), icon: <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M13 9V3.5L18.5 9M6 2c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h12c1.11 0 2-.89 2-2V8l-6-6H6z" /></svg> },
+    { id: "overview", label: t("overview"), icon: <LayoutDashboard aria-hidden="true" className="h-4 w-4" /> },
+    { id: "achievements", label: t("achievements"), icon: <Trophy aria-hidden="true" className="h-4 w-4" /> },
+    { id: "statistics", label: t("statistics"), icon: <ChartNoAxesColumn aria-hidden="true" className="h-4 w-4" /> },
+    { id: "activity", label: t("activity"), icon: <History aria-hidden="true" className="h-4 w-4" /> },
   ]
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back")}
-          </PremiumButton>
-        </Link>
-        <div className="flex items-center gap-3">
+      <PageHeader title={t("yourJourney")} subtitle={t("smallSteps")} icon={UserRound} actions={<div className="flex items-center gap-2 flex-wrap">
           <label className="flex items-center gap-2 text-sm text-on-surface-variant">
             {/* `hidden sm:inline` removed the word entirely on phones, which
                 also removed the select's accessible name — and `sm` is 640px, so
@@ -102,7 +100,7 @@ export function ProfilePageClient({
             <select
               value={locale}
               onChange={(e) => setLocale(e.target.value as Locale)}
-              className="bg-surface-container-high border border-white/10 rounded-lg px-3 py-1.5 text-on-surface text-sm"
+              className="bg-surface-container-high border border-white/10 rounded-xl min-h-11 px-3 py-2 text-on-surface text-sm"
             >
               {LANGUAGE_OPTIONS.map((opt) => (
                 <option key={opt.code} value={opt.code}>{opt.label}</option>
@@ -110,12 +108,11 @@ export function ProfilePageClient({
             </select>
           </label>
           <LogoutButton showLabel className="flex items-center gap-2 rounded-lg border border-white/10 bg-surface-container-high px-3 py-1.5 text-sm text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error" />
-        </div>
-      </motion.div>
+        </div>} />
 
       {/* Profile Card */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-8 mb-8">
-        <div className="flex flex-col md:flex-row items-center gap-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="page-hero p-5 sm:p-8 mb-7">
+        <div className="flex flex-col md:flex-row items-center gap-5 sm:gap-8">
           {/* The rank sits **under** the face, not on it.
 
               It was absolutely positioned at `-top-2 -right-2`, which put the
@@ -133,7 +130,7 @@ export function ProfilePageClient({
           <div className="flex flex-col items-center gap-3">
             <PremiumAvatar size="xl" ring ringColor="primary" avatarId={profile.avatarId} />
             {currentRank && (
-              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <motion.div initial={reduce ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <PremiumBadge variant="warning" size="md">
                   {RankEmblem && <RankEmblem className="h-4 w-4 shrink-0" />}
                   {currentRank.name.toUpperCase()}
@@ -142,16 +139,14 @@ export function ProfilePageClient({
             )}
           </div>
 
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary mb-2">
-              {profile.displayName ?? email ?? t("learnerFallback")}
-            </h1>
+          <div className="flex-1 text-center md:text-start">
+            <h2 className="font-headline-lg text-2xl sm:text-3xl text-primary mb-2 break-words">
+              {profile.displayName ?? t("learnerFallback")}
+            </h2>
 
             <div className="flex items-center gap-4 justify-center md:justify-start mb-4 text-on-surface-variant">
               <span className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z" />
-                </svg>
+                <CalendarDays aria-hidden="true" className="h-4 w-4" />
                 {t("joinedOn", { date: joinDate })}
               </span>
             </div>
@@ -181,7 +176,7 @@ export function ProfilePageClient({
                   )}
                 </div>
                 {nextRank && xpNeededForNextRank !== null && (
-                  <PremiumProgress value={xpIntoCurrentRank} max={xpNeededForNextRank} size="lg" />
+                  <PremiumProgress label={t("progressToRank", { rank: nextRank.name })} value={xpIntoCurrentRank} max={xpNeededForNextRank} size="lg" />
                 )}
               </div>
             )}
@@ -190,12 +185,13 @@ export function ProfilePageClient({
       </motion.div>
 
       {/* Tabs */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-8 overflow-x-auto pb-2">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-8 overflow-x-auto pb-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            aria-pressed={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-label-caps text-label-caps uppercase tracking-widest transition-all duration-200 whitespace-nowrap ${
+            className={`flex items-center gap-2 min-h-11 shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition-colors whitespace-nowrap ${
               activeTab === tab.id ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
             }`}
           >
@@ -207,13 +203,11 @@ export function ProfilePageClient({
 
       <AnimatePresence mode="wait">
         {activeTab === "overview" && (
-          <motion.div key="overview" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <motion.div key="overview" initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <PremiumCard className="p-6">
               <h3 className="font-headline-md text-headline-md text-primary mb-4">{t("learningProgress")}</h3>
               {categories.length === 0 ? (
-                <p className="text-on-surface-variant text-sm">
-                  {t("noQuizzesYet")}
-                </p>
+                <EmptyState description={t("noQuizzesYet")} action={<PremiumButton href="/quiz" size="sm">{t("exploreSubject")}</PremiumButton>} />
               ) : (
                 <div className="space-y-4">
                   {categories.map((category) => (
@@ -232,7 +226,7 @@ export function ProfilePageClient({
             <PremiumCard className="p-6">
               <h3 className="font-headline-md text-headline-md text-primary mb-4">{t("recentAchievements")}</h3>
               {unlockedAchievements.length === 0 ? (
-                <p className="text-on-surface-variant text-sm">{t("noAchievementsYet")}</p>
+                <EmptyState description={t("noAchievementsYet")} action={<PremiumButton href="/achievements" size="sm" variant="secondary">{t("achievements")}</PremiumButton>} />
               ) : (
                 <div className="space-y-3">
                   {unlockedAchievements.slice(0, 3).map((achievement) => (
@@ -244,7 +238,7 @@ export function ProfilePageClient({
                       </div>
                       {achievement.earnedAt && (
                         <PremiumBadge variant="success" size="sm">
-                          {new Date(achievement.earnedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          {new Date(achievement.earnedAt).toLocaleDateString(locale, { month: "short", day: "numeric" })}
                         </PremiumBadge>
                       )}
                     </div>
@@ -257,6 +251,8 @@ export function ProfilePageClient({
                 stat card sitting alongside the others. */}
             <div className="md:col-span-2 space-y-6">
               {isAdmin && <GameMasterCard />}
+              <h2 className="font-headline-md text-xl text-on-surface">{t("settings")}</h2>
+              <EffectsToggle />
               <SoundToggle />
               <VolumeSlider />
               <HapticsToggle />
@@ -267,7 +263,8 @@ export function ProfilePageClient({
         )}
 
         {activeTab === "achievements" && (
-          <motion.div key="achievements" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <motion.div key="achievements" initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {achievements.length === 0 && <EmptyState description={t("noAchievementsYet")} action={<PremiumButton href="/quiz" size="sm">{t("exploreSubject")}</PremiumButton>} />}
             {achievements.map((achievement) => (
               <AchievementCard
                 key={achievement.slug}
@@ -278,14 +275,14 @@ export function ProfilePageClient({
                 maxProgress={achievement.target}
                 reward=""
                 isUnlocked={achievement.unlocked}
-                unlockedAt={achievement.earnedAt ? new Date(achievement.earnedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : undefined}
+                unlockedAt={achievement.earnedAt ? new Date(achievement.earnedAt).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" }) : undefined}
               />
             ))}
           </motion.div>
         )}
 
         {activeTab === "statistics" && (
-          <motion.div key="statistics" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <motion.div key="statistics" initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {categories.length === 0 ? (
               <PremiumCard className="p-6">
                 <h3 className="font-headline-md text-headline-md text-primary mb-4">{t("categoryPerformance")}</h3>
@@ -305,7 +302,7 @@ export function ProfilePageClient({
                 {[...Array(7)].map((_, i) => (
                   <motion.div
                     key={i}
-                    initial={{ scale: 0 }}
+                    initial={reduce ? false : { scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ delay: i * 0.05 }}
                     className={`h-10 rounded-lg ${i < Math.min(profile.streakCount, 7) ? "bg-primary/60" : "bg-surface-container-highest"}`}
@@ -327,13 +324,11 @@ export function ProfilePageClient({
         )}
 
         {activeTab === "activity" && (
-          <motion.div key="activity" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+          <motion.div key="activity" initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
             <PremiumCard className="p-6">
               <h3 className="font-headline-md text-headline-md text-primary mb-4">{t("recentActivity")}</h3>
               {recentAttempts.length === 0 ? (
-                <p className="text-on-surface-variant text-sm">
-                  {t("noActivityYet")}
-                </p>
+                <EmptyState description={t("noActivityYet")} action={<PremiumButton href="/quiz" size="sm">{t("exploreSubject")}</PremiumButton>} />
               ) : (
                 <div className="space-y-3">
                   {recentAttempts.map((a, i) => (

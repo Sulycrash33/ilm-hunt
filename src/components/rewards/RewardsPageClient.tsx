@@ -1,8 +1,15 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { useAsyncAction } from "@/hooks/use-async-action"
+
+import { PageHeader } from "@/components/layout/PageHeader"
+import { Gift } from "lucide-react"
+
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { useState, useTransition, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
 import { PremiumCard } from "@/components/ui/premium-card"
@@ -71,6 +78,8 @@ export function RewardsPageClient({
   spinRewards: SpinSegment[]
 }) {
   const { t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
+  const actionLock = useRef(false)
   const [coins, setCoins] = useState(initialCoins)
   const [xp, setXp] = useState(initialXp)
   const [claimedToday, setClaimedToday] = useState(initialClaimedToday)
@@ -91,7 +100,7 @@ export function RewardsPageClient({
     lastSpinAt ? new Date(new Date(lastSpinAt).getTime() + SPIN_COOLDOWN_MS).toISOString() : null
   )
   const [now, setNow] = useState(() => Date.now())
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useAsyncAction(() => setMessage(t("somethingWentWrong")))
   const [pendingAction, setPendingAction] = useState<string | null>(null)
   /** The segment the wheel is travelling to, or null when it is at rest. */
   const [spinTarget, setSpinTarget] = useState<number | null>(null)
@@ -129,8 +138,12 @@ export function RewardsPageClient({
   const spinReady = !spinAvailableAt || new Date(spinAvailableAt).getTime() <= now
 
   const handleClaim = () => {
+    if (actionLock.current) return
+    actionLock.current = true
+    setMessage(null)
     setPendingAction("claim")
     startTransition(async () => {
+      try {
       const result = await claimDailyLogin()
       if (result.success) {
         setClaimedToday(true)
@@ -153,7 +166,8 @@ export function RewardsPageClient({
       } else {
         setMessage(result.error ?? t("claimErrorMsg"))
       }
-      setPendingAction(null)
+      } catch { setMessage(t("claimErrorMsg")) }
+      finally { actionLock.current = false; setPendingAction(null) }
     })
   }
 
@@ -173,9 +187,12 @@ export function RewardsPageClient({
    * waiting.
    */
   const handleSpin = () => {
+    if (actionLock.current || !spinReady) return
+    actionLock.current = true
     setPendingAction("spin")
     setMessage(null)
     startTransition(async () => {
+      try {
       const result = await spinWheel()
       if (result.success) {
         // Matched on type and value rather than on the label, because the
@@ -199,8 +216,10 @@ export function RewardsPageClient({
       } else {
         if (result.nextAvailableAt) setSpinAvailableAt(result.nextAvailableAt)
         setMessage(result.error ?? t("spinErrorMsg"))
+        actionLock.current = false
         setPendingAction(null)
       }
+      } catch { actionLock.current = false; setPendingAction(null); setMessage(t("spinErrorMsg")) }
     })
   }
 
@@ -210,6 +229,7 @@ export function RewardsPageClient({
     setSpinAvailableAt(new Date(Date.now() + SPIN_COOLDOWN_MS).toISOString())
     setMessage(t("spinWonMsg", { label: result.label ?? "" }))
     setPendingSpin(null)
+    actionLock.current = false
     setPendingAction(null)
   }
 
@@ -218,42 +238,26 @@ export function RewardsPageClient({
   }
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back")}
-          </PremiumButton>
-        </Link>
-        <div className="text-center">
-          <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary">{t("rewardsCenter")}</h1>
-          <p className="text-on-surface-variant">{t("realProgressRealPrizes")}</p>
-        </div>
-        <div className="flex items-center gap-2 bg-tertiary/10 px-4 py-2 rounded-full border border-tertiary/30">
-          <span className="font-bold text-tertiary">{coins.toLocaleString()} {t("coinsWord").toLowerCase()}</span>
-        </div>
-      </motion.div>
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+      <PageHeader title={t("rewardsCenter")} subtitle={t("realProgressRealPrizes")} icon={Gift} actions={<span className="rounded-xl border border-tertiary/30 bg-tertiary/10 px-4 py-3 font-bold text-tertiary">{coins.toLocaleString()} {t("coinsWord")}</span>} />
 
       {message && (
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={reduce ? false : { opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           // The wheel itself is hidden from assistive technology, so this is
           // the only place a screen reader learns what was won. It has to
           // announce on change rather than only on focus.
           role="status"
           aria-live="polite"
-          className="mb-6 text-center text-sm text-on-surface-variant"
+          className="mb-6 rounded-xl border border-tertiary/25 bg-tertiary/10 p-4 text-sm text-on-surface"
         >
           {message}
         </motion.div>
       )}
 
       {/* Streak stats */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6 mb-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6 mb-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div>
             <p className="font-bold text-3xl text-primary">{streakCount}</p>
@@ -291,14 +295,14 @@ export function RewardsPageClient({
           for doing this". One card, one task, one place to press. It is the
           same `DailyChallengeCard` component, so there is still exactly one
           definition of what the challenge says and what it pays. */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-6 mb-8">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-6 mb-8">
         {dailyChallenge && (
           <div className="mb-6">
             <DailyChallengeCard challenge={dailyChallenge} />
           </div>
         )}
         <h2 className="font-headline-md text-headline-md text-on-surface mb-4">{t("dailyLoginRewards")}</h2>
-        <div className="grid grid-cols-7 gap-2 mb-4">
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
           {loginRewards.map((r) => {
             const isPast = r.day_number < currentDayNumber || (r.day_number === currentDayNumber && claimedToday)
             const isToday = r.day_number === currentDayNumber && !claimedToday
@@ -309,12 +313,12 @@ export function RewardsPageClient({
                   isPast
                     ? "bg-primary/20 border-primary/40"
                     : isToday
-                      ? "bg-tertiary/20 border-tertiary/50 animate-pulse"
+                      ? "bg-tertiary/20 border-tertiary/50"
                       : "bg-surface-container-high border-white/5"
                 }`}
               >
                 <p className="text-xs text-on-surface-variant">{t("dayLabel", { day: r.day_number })}</p>
-                <p className="text-sm font-bold text-on-surface">{r.coins}c</p>
+                <p className="text-sm font-bold text-on-surface">{r.coins} <span className="sr-only">{t("coinsWord")}</span></p>
                 {isPast && <p className="text-xs text-primary">✓</p>}
               </div>
             )
@@ -373,7 +377,7 @@ export function RewardsPageClient({
         <PremiumButton
           variant="primary"
           onClick={handleClaim}
-          disabled={claimedToday || !taskDone || (isPending && pendingAction === "claim")}
+          disabled={claimedToday || !taskDone || pendingAction !== null}
         >
           {claimedToday
             ? t("claimedForToday")
@@ -385,9 +389,9 @@ export function RewardsPageClient({
         </PremiumButton>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="max-w-2xl mx-auto mb-8">
         {/* Spin wheel - real, server-computed, cooldown-gated */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card p-6">
+        <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card p-6">
           <h2 className="font-headline-md text-headline-md text-on-surface mb-4">{t("freeSpinTitle")}</h2>
           <p className="text-on-surface-variant text-sm mb-4">{t("freeSpinDesc")}</p>
 
@@ -401,7 +405,7 @@ export function RewardsPageClient({
           <PremiumButton
             variant="primary"
             onClick={handleSpin}
-            disabled={!spinReady || pendingAction === "spin"}
+            disabled={!spinReady || pendingAction !== null || spinRewards.length === 0}
           >
             {pendingAction === "spin"
               ? t("spinningLabel")

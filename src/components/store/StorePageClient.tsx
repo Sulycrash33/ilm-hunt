@@ -1,8 +1,16 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
+import { PageHeader } from "@/components/layout/PageHeader"
+import { ShoppingBag , Coins } from "lucide-react"
+
 import { motion, AnimatePresence } from "framer-motion"
-import Link from "next/link"
-import { useMemo, useState } from "react"
+import { EmptyState } from "@/components/ui/empty-state"
+import { PremiumModal } from "@/components/ui/premium-modal"
+import { Search } from "lucide-react"
+import { normalizeSubjectSearch } from "@/lib/subject-discovery"
+import { useMemo, useState, useRef } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { ShopItem } from "@/components/game/ShopItem"
 import { purchaseStoreItem, type StoreCatalogueItem } from "@/app/(app)/store/actions"
@@ -29,6 +37,10 @@ interface StorePageClientProps {
 
 export function StorePageClient({ initialCoins, catalogue }: StorePageClientProps) {
   const { t, dir } = useLanguage()
+  const reduce = useGameReducedMotion()
+  const purchaseLock = useRef(false)
+  const [query, setQuery] = useState("")
+  const [selectedItem, setSelectedItem] = useState<StoreCatalogueItem | null>(null)
   const [activeTab, setActiveTab] = useState<StoreTab>("lifelines")
   const [coins, setCoins] = useState(initialCoins)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -40,8 +52,8 @@ export function StorePageClient({ initialCoins, catalogue }: StorePageClientProp
   )
 
   const visibleItems = useMemo(
-    () => catalogue.filter((item) => item.tab === activeTab),
-    [catalogue, activeTab],
+    () => catalogue.filter((item) => item.tab === activeTab && normalizeSubjectSearch(`${t(item.nameKey as keyof Translations)} ${t(item.descKey as keyof Translations)}`).includes(normalizeSubjectSearch(query))),
+    [catalogue, activeTab, query, t],
   )
 
   const tabs: { id: StoreTab; label: string; icon: React.ReactNode }[] = [
@@ -56,11 +68,13 @@ export function StorePageClient({ initialCoins, catalogue }: StorePageClientProp
   ]
 
   const handlePurchase = async (id: string, name: string) => {
+    if (purchaseLock.current) return
+    purchaseLock.current = true
     setPendingId(id)
     setMessage(null)
     // Only the id goes to the server. It decides the price.
+    try {
     const result = await purchaseStoreItem(id)
-    setPendingId(null)
 
     if (result.success && result.newBalance !== undefined) {
       setCoins(result.newBalance)
@@ -71,49 +85,36 @@ export function StorePageClient({ initialCoins, catalogue }: StorePageClientProp
       if (result.newBalance !== undefined) setCoins(result.newBalance)
       setMessage(result.error ?? t("purchaseFailedMsg"))
     }
+    } catch { setMessage(t("purchaseFailedMsg")) }
+    finally { purchaseLock.current = false; setPendingId(null); setSelectedItem(null) }
   }
 
   return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
+    <div dir={dir} className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
-        <Link href="/home">
-          <PremiumButton variant="ghost" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back")}
-          </PremiumButton>
-        </Link>
-        <div className="text-center">
-          <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary">{t("ilmStore")}</h1>
-          <p className="text-on-surface-variant">{t("enhanceLearning")}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-tertiary/10 px-4 py-2 rounded-full border border-tertiary/30">
-            <svg className="w-5 h-5 text-tertiary" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.94s4.18 1.36 4.18 3.85c0 1.89-1.44 2.98-3.12 3.19z" />
-            </svg>
-            {/* Counts down as you buy, so spending is something you watch happen
-                rather than a number that was different a moment ago. */}
-            <CountUp value={coins} className="font-bold text-tertiary tabular-nums" />
-          </div>
-        </div>
-      </motion.div>
+      <PageHeader title={t("ilmStore")} subtitle={t("enhanceLearning")} icon={ShoppingBag} actions={<div className="flex items-center gap-2 rounded-xl border border-tertiary/30 bg-tertiary/10 px-4 py-3 text-tertiary"><Coins aria-hidden="true" className="h-5 w-5" /><CountUp value={coins} />{t("coinsWord")}</div>} />
 
       {message && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 text-center text-sm text-on-surface-variant">
+        <motion.div role="status" aria-live="polite" initial={reduce ? false : { opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 text-center text-sm text-on-surface-variant">
           {message}
         </motion.div>
       )}
 
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <label className="flex min-h-12 flex-1 items-center gap-3 rounded-xl border border-white/10 bg-surface-container-high px-4">
+          <Search aria-hidden="true" className="h-5 w-5 text-on-surface-variant" />
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("storeSearch")} placeholder={t("storeSearch")} className="min-w-0 w-full bg-transparent py-3 text-on-surface outline-none" />
+        </label>
+        <PremiumButton href="/rewards" variant="secondary" size="sm">{t("rewardsCenter")}</PremiumButton>
+      </div>
       {/* Tabs */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-8 overflow-x-auto pb-2">
+      <motion.div initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex gap-2 mb-8 overflow-x-auto pb-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            aria-pressed={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-label-caps text-label-caps uppercase tracking-widest transition-all duration-200 whitespace-nowrap ${
+            className={`flex items-center gap-2 min-h-11 shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition-colors whitespace-nowrap ${
               activeTab === tab.id ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
             }`}
           >
@@ -123,35 +124,53 @@ export function StorePageClient({ initialCoins, catalogue }: StorePageClientProp
         ))}
       </motion.div>
 
+      {visibleItems.length === 0 && <EmptyState description={t("shopEmpty")} icon={ShoppingBag} />}
       <AnimatePresence mode="wait">
-        <motion.div key={activeTab} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div key={activeTab} initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           {visibleItems.map((item, index) => {
             const isOwned = !item.consumable && (owned[item.id] ?? 0) > 0
             return (
-            <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+            <motion.div key={item.id} initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
               <ShopItem
+                nameKey={item.nameKey}
                 name={t(item.nameKey as keyof Translations)}
                 description={t(item.descKey as keyof Translations)}
                 price={item.price}
                 icon={item.icon}
                 category={item.category}
                 isOwned={isOwned}
+                pending={pendingId === item.id}
+                disabled={pendingId !== null}
+                affordable={coins >= item.price}
+                inStock={item.inStock}
+                quantity={owned[item.id] ?? 0}
+                bundle={item.tab === "bundles"}
                 onPurchase={
                   isOwned || !item.inStock
                     ? undefined
-                    : () => handlePurchase(item.id, t(item.nameKey as keyof Translations))
+                    : () => setSelectedItem(item)
                 }
               />
-              {pendingId === item.id && <p className="text-xs text-on-surface-variant text-center mt-1">{t("processingLabel")}</p>}
-              {item.consumable && (owned[item.id] ?? 0) > 0 && (
-                <p className="text-xs text-tertiary text-center mt-1">×{owned[item.id]}</p>
-              )}
+
+
             </motion.div>
             )
           })}
         </motion.div>
       </AnimatePresence>
 
+      <PremiumModal isOpen={selectedItem !== null} onClose={() => { if (!purchaseLock.current) setSelectedItem(null) }} title={t("confirm")}>
+        {selectedItem && <div className="space-y-5">
+          <h3 className="text-lg font-bold text-on-surface">{t(selectedItem.nameKey as keyof Translations)}</h3>
+          <p className="text-sm text-on-surface-variant">{t(selectedItem.descKey as keyof Translations)}</p>
+          <p className="font-bold text-tertiary">{selectedItem.price.toLocaleString()} {t("coinsWord")}</p>
+          <p className="text-xs text-on-surface-variant">{t("storeFootnote")}</p>
+          <div className="flex flex-wrap gap-3">
+            <PremiumButton variant="secondary" disabled={pendingId !== null} onClick={() => setSelectedItem(null)}>{t("cancel")}</PremiumButton>
+            <PremiumButton disabled={pendingId !== null} onClick={() => handlePurchase(selectedItem.id, t(selectedItem.nameKey as keyof Translations))}>{pendingId ? t("processingLabel") : t("buy")}</PremiumButton>
+          </div>
+        </div>}
+      </PremiumModal>
       <p className="text-xs text-on-surface-variant text-center mt-8">
         {t("storeFootnote")}
       </p>

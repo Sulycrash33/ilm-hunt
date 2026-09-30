@@ -1,6 +1,6 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { PremiumModal } from "@/components/ui/premium-modal"
 import { useState } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
@@ -8,42 +8,26 @@ import { PremiumCard } from "@/components/ui/premium-card"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 interface CreateRoomModalProps {
+  error?: string | null
   isOpen: boolean
   onClose: () => void
   onCreateRoom: (config: {
     difficulty: "easy" | "medium" | "hard"
     maxPlayers: number
     questionCount: number
-  }) => void
+  }) => (Promise<void>)
 }
 
-export function CreateRoomModal({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps) {
+export function CreateRoomModal({ isOpen, onClose, onCreateRoom, error }: CreateRoomModalProps) {
   const { t } = useLanguage()
   const difficultyLabels: Record<"easy" | "medium" | "hard", string> = { easy: t("easy"), medium: t("medium"), hard: t("hard") }
+  const [pending, setPending] = useState(false)
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium")
   const [maxPlayers, setMaxPlayers] = useState(4)
   const [questionCount, setQuestionCount] = useState(10)
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative w-full max-w-md glass-card p-6"
-      >
-        <h2 className="font-headline-md text-headline-md text-on-surface mb-6">
-          {t("createQuizRoomTitle")}
-        </h2>
-
+    <PremiumModal isOpen={isOpen} onClose={() => { if (!pending) onClose() }} title={t("createQuizRoomTitle")} size="md">
         {/* No subject to pick.
 
             A battle used to ask the host to choose a category, which is the
@@ -63,8 +47,10 @@ export function CreateRoomModal({ isOpen, onClose, onCreateRoom }: CreateRoomMod
             {(["easy", "medium", "hard"] as const).map((d) => (
               <button
                 key={d}
+                disabled={pending}
+                aria-pressed={difficulty === d}
                 onClick={() => setDifficulty(d)}
-                className={`p-2 rounded-lg border text-center capitalize transition-all ${
+                className={`min-h-11 p-2 rounded-xl border text-center capitalize transition-all ${
                   difficulty === d
                     ? d === "easy"
                       ? "bg-success/20 border-success text-success"
@@ -87,8 +73,10 @@ export function CreateRoomModal({ isOpen, onClose, onCreateRoom }: CreateRoomMod
             {[2, 4, 6, 8].map((num) => (
               <button
                 key={num}
+                disabled={pending}
+                aria-pressed={maxPlayers === num}
                 onClick={() => setMaxPlayers(num)}
-                className={`flex-1 p-2 rounded-lg border text-center transition-all ${
+                className={`flex-1 min-h-11 p-2 rounded-xl border text-center transition-all ${
                   maxPlayers === num
                     ? "bg-primary/20 border-primary text-primary"
                     : "bg-surface-container-high border-white/5 text-on-surface-variant hover:bg-surface-container-highest"
@@ -107,8 +95,10 @@ export function CreateRoomModal({ isOpen, onClose, onCreateRoom }: CreateRoomMod
             {[5, 10, 15, 20].map((num) => (
               <button
                 key={num}
+                disabled={pending}
+                aria-pressed={questionCount === num}
                 onClick={() => setQuestionCount(num)}
-                className={`flex-1 p-2 rounded-lg border text-center transition-all ${
+                className={`flex-1 min-h-11 p-2 rounded-xl border text-center transition-all ${
                   questionCount === num
                     ? "bg-primary/20 border-primary text-primary"
                     : "bg-surface-container-high border-white/5 text-on-surface-variant hover:bg-surface-container-highest"
@@ -120,22 +110,21 @@ export function CreateRoomModal({ isOpen, onClose, onCreateRoom }: CreateRoomMod
           </div>
         </div>
 
+        {error && <p role="alert" className="mb-4 rounded-xl border border-error/30 bg-error/10 p-3 text-sm text-error">{error}</p>}
         {/* Actions */}
         <div className="flex gap-3">
-          <PremiumButton variant="secondary" fullWidth onClick={onClose}>
+          <PremiumButton variant="secondary" fullWidth disabled={pending} onClick={onClose}>
             {t("cancel")}
           </PremiumButton>
           <PremiumButton
             variant="primary"
             fullWidth
-            onClick={() =>
-              onCreateRoom({ difficulty, maxPlayers, questionCount })
-            }
+            disabled={pending}
+            onClick={async () => { if (pending) return; setPending(true); try { await onCreateRoom({ difficulty, maxPlayers, questionCount }) } finally { setPending(false) } }}
           >
-            {t("createRoom")}
+            {pending ? t("creatingLabel") : t("createRoom")}
           </PremiumButton>
         </div>
-      </motion.div>
-    </div>
+    </PremiumModal>
   )
 }

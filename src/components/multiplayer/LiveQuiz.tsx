@@ -1,7 +1,9 @@
 "use client"
 
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
+
 import { motion, AnimatePresence } from "framer-motion"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
 import { PremiumCard } from "@/components/ui/premium-card"
@@ -24,13 +26,14 @@ interface Player {
 }
 
 interface LiveQuizProps {
+  nextPending?: boolean
   question: Question
   questionNumber: number
   totalQuestions: number
   timeLimit: number
   players: Player[]
   currentUserId: string
-  onAnswer: (selectedIndex: number, timeTaken: number) => void
+  onAnswer: (selectedIndex: number, timeTaken: number) => (Promise<boolean>)
   onNextQuestion: () => void
   isHost: boolean
   showResults: boolean
@@ -41,6 +44,7 @@ interface LiveQuizProps {
 
 export function LiveQuiz({
   question,
+  nextPending = false,
   questionNumber,
   totalQuestions,
   timeLimit,
@@ -53,50 +57,66 @@ export function LiveQuiz({
   lastAnswerCorrect,
 }: LiveQuizProps) {
   const { t } = useLanguage()
+  const reduce = useGameReducedMotion()
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null)
   const [timeRemaining, setTimeRemaining] = useState(timeLimit)
   const [hasAnswered, setHasAnswered] = useState(false)
 
+  const answerLock = useRef(false)
+  const activeQuestion = useRef(question.id)
+  const deadline = useRef(0)
+  const [submitting, setSubmitting] = useState(false)
+
   useEffect(() => {
+    activeQuestion.current = question.id
+    deadline.current = Date.now() + timeLimit * 1000
+    answerLock.current = false
+    setSubmitting(false)
     setSelectedChoice(null)
     setTimeRemaining(timeLimit)
     setHasAnswered(false)
   }, [question.id, timeLimit])
 
   useEffect(() => {
-    if (timeRemaining <= 0 || hasAnswered) return
-
     const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          setHasAnswered(true)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
+      const remaining = Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000))
+      setTimeRemaining(remaining)
+      if (remaining === 0) setHasAnswered(true)
+    }, 250)
     return () => clearInterval(timer)
-  }, [timeRemaining, hasAnswered])
+  }, [question.id, timeLimit])
 
-  const handleAnswer = useCallback(
-    (index: number) => {
-      if (hasAnswered) return
-      setSelectedChoice(index)
-      setHasAnswered(true)
-      onAnswer(index, timeLimit - timeRemaining)
-    },
-    [hasAnswered, timeLimit, timeRemaining, onAnswer]
-  )
+  const handleAnswer = useCallback(async (index: number) => {
+    if (hasAnswered || answerLock.current || Date.now() >= deadline.current) return
+    const questionId = question.id
+    answerLock.current = true
+    setSubmitting(true)
+    setSelectedChoice(index)
+    setHasAnswered(true)
+    let accepted = false
+    try {
+      accepted = await onAnswer(index, Math.floor(Math.min(timeLimit, Math.max(0, (Date.now() - (deadline.current - timeLimit * 1000)) / 1000))))
+    } catch {
+      accepted = false
+    } finally {
+      if (activeQuestion.current === questionId) {
+        setSubmitting(false)
+        if (!accepted) {
+          answerLock.current = false
+          setHasAnswered(Date.now() >= deadline.current)
+          setSelectedChoice(null)
+        }
+      }
+    }
+  }, [hasAnswered, question.id, timeLimit, onAnswer])
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center gap-3">
           <PremiumBadge variant="primary" size="md">
             {t("questionNumber", { current: questionNumber, total: totalQuestions })}
           </PremiumBadge>
@@ -117,6 +137,7 @@ export function LiveQuiz({
       {/* Timer Bar */}
       <div className="mb-6">
         <PremiumProgress
+          label={t("timeRemaining")}
           value={timeRemaining}
           max={timeLimit}
           size="md"
@@ -129,7 +150,7 @@ export function LiveQuiz({
         <div className="lg:col-span-2">
           <motion.div
             key={question.id}
-            initial={{ opacity: 0, y: 20 }}
+            initial={reduce ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="glass-card p-6 mb-6"
           >
@@ -150,12 +171,12 @@ export function LiveQuiz({
                 return (
                   <motion.button
                     key={index}
-                    whileHover={!hasAnswered ? { scale: 1.02 } : {}}
-                    whileTap={!hasAnswered ? { scale: 0.98 } : {}}
+                    whileHover={!reduce && !hasAnswered ? { scale: 1.02 } : {}}
+                    whileTap={!reduce && !hasAnswered ? { scale: 0.98 } : {}}
                     onClick={() => handleAnswer(index)}
-                    disabled={hasAnswered}
+                    disabled={hasAnswered || timeRemaining <= 0}
                     className={`
-                      p-4 rounded-xl border text-left transition-all
+                      p-4 rounded-xl border text-start transition-all
                       ${selectedWasCorrect
                         ? "bg-success/20 border-success"
                         : selectedWasWrong
@@ -191,14 +212,16 @@ export function LiveQuiz({
             </div>
           </motion.div>
 
+          <p role="status" className="mb-4 text-sm text-on-surface-variant">{hasAnswered && selectedChoice !== null ? lastAnswerCorrect === null ? t("checkingAnswer") : lastAnswerCorrect ? t("correct") : t("incorrect") : ""}</p>
+
           {/* Next Question Button (Host Only) */}
-          {isHost && hasAnswered && (
+          {isHost && hasAnswered && !submitting && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={reduce ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <PremiumButton variant="primary" fullWidth onClick={onNextQuestion}>
-                {questionNumber >= totalQuestions ? t("seeResultsButton") : t("nextQuestionButton")}
+              <PremiumButton variant="primary" fullWidth disabled={nextPending} aria-busy={nextPending} onClick={onNextQuestion}>
+                {nextPending ? t("processingLabel") : questionNumber >= totalQuestions ? t("seeResultsButton") : t("nextQuestionButton")}
               </PremiumButton>
             </motion.div>
           )}
