@@ -1,7 +1,10 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
+import { motion } from "framer-motion";
+import { Check, X, LoaderCircle } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { playCue } from "@/lib/sound";
 import { playHaptic } from "@/lib/haptics";
@@ -14,6 +17,7 @@ interface OptionTileProps {
   state: OptionState;
   disabled: boolean;
   onSelect: () => void;
+  pending?: boolean;
 }
 
 /**
@@ -27,7 +31,8 @@ interface OptionTileProps {
  * Every state pairs colour with a glyph or an opacity change — colour alone
  * would leave a colour-blind player unable to read the reveal.
  */
-export function OptionTile({ label, index, state, disabled, onSelect }: OptionTileProps) {
+export function OptionTile({ label, index, state, disabled, onSelect, pending = false }: OptionTileProps) {
+  const { t } = useLanguage();
   const letter = String.fromCharCode(65 + index);
   const interactive = state === "idle" && !disabled;
   const reduce = useReducedMotion();
@@ -82,9 +87,10 @@ export function OptionTile({ label, index, state, disabled, onSelect }: OptionTi
           ? { duration: 0.34, ease: "easeOut" }
           : { duration: 0.4, ease: "easeInOut" }
       }
-      aria-label={`${letter}. ${label}`}
+      aria-label={`${letter}. ${label}${pending ? `. ${t("checkingAnswer")}` : state === "correct" || state === "missed" ? `. ${t("correct")}` : state === "wrong" ? `. ${t("incorrect")}` : ""}`}
+      aria-busy={pending}
       className={cn(
-        "flex w-full items-center gap-4 rounded-xl border-2 p-4 text-left transition-colors",
+        "flex min-h-16 w-full items-center gap-4 rounded-2xl border-2 p-4 text-start transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         state === "idle" &&
           "border-transparent bg-surface-container hover:border-primary/50 hover:bg-surface-container-high",
@@ -96,6 +102,7 @@ export function OptionTile({ label, index, state, disabled, onSelect }: OptionTi
         state === "wrong" && "border-error bg-error/10",
         state === "missed" && "border-primary/60 bg-primary/5",
         disabled && state === "idle" && "opacity-70",
+        pending && "!border-primary/60 !bg-primary/10 !opacity-100",
       )}
     >
       <span
@@ -109,7 +116,7 @@ export function OptionTile({ label, index, state, disabled, onSelect }: OptionTi
         )}
         aria-hidden="true"
       >
-        {state === "correct" || state === "missed" ? (
+        {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : state === "correct" || state === "missed" ? (
           <Check className="h-4 w-4" />
         ) : state === "wrong" ? (
           <X className="h-4 w-4" />

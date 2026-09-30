@@ -1,8 +1,10 @@
 "use client"
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { motion, useReducedMotion } from "framer-motion"
+import { motion } from "framer-motion";
 import { Trophy, Zap, Users, Gamepad2 } from "lucide-react"
 import { PremiumAvatar } from "@/components/ui/premium-avatar"
 import { CountUp } from "@/components/ui/count-up"
@@ -156,12 +158,12 @@ export default function HomePage() {
               <span className="sr-only">{t("coinsWord")}</span>
             </div>
           </div>
-          <LogoutButton className="flex items-center justify-center h-9 w-9 rounded-full text-on-surface-variant/70 hover:bg-white/5 hover:text-error transition-colors" />
+          <LogoutButton className="flex items-center justify-center h-11 w-11 rounded-full text-on-surface-variant/70 hover:bg-white/5 hover:text-error transition-colors" />
         </div>
       </motion.header>
 
       {/* Main Content */}
-      <main className="mt-20 px-5 max-w-7xl mx-auto space-y-4 relative">
+      <main className="mt-20 px-5 max-w-7xl mx-auto space-y-6 relative">
         {/* Salaam, name, rank. First thing on the page, on every screen size. */}
         <SalaamGreeting />
 
@@ -316,6 +318,8 @@ export default function HomePage() {
             exact failure this session has already fixed twice. It moves into
             the Explore grid below, where the other rooms live. */}
 
+        <h2 className="pt-2 font-serif text-xl text-on-surface">{t("moreWaysToGrow")}</h2>
+
         {/* Explore - the only entry point to these pages besides typing the URL.
 
             These were four flat emoji on four identical grey cards, which made
@@ -351,7 +355,7 @@ export default function HomePage() {
             >
               <Link
                 href={href}
-                className="glass-card p-4 h-full flex flex-col items-center text-center gap-2 transition-all hover:bg-white/5 hover:-translate-y-0.5 active:scale-[0.97]"
+                className="glass-card interactive-card p-5 h-full flex flex-col items-center text-center gap-3 hover:border-primary/30"
               >
                 <span
                   className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${tint} ring-1 ring-white/10`}

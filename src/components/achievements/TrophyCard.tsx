@@ -1,6 +1,8 @@
 "use client"
 
-import { motion, useReducedMotion } from "framer-motion"
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils"
 import { RARITY_STYLES } from "@/lib/design-tokens"
 import { useLanguage } from "@/contexts/LanguageContext"

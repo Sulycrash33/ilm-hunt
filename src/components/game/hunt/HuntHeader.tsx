@@ -1,6 +1,7 @@
 "use client";
 
 import { Heart, Coins, Flame } from "lucide-react";
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -60,6 +61,7 @@ export function HuntHeader({
   maxLives = HUNT_RULES.startingLives,
 }: HuntHeaderProps) {
   const { t } = useLanguage();
+  const reduce = useGameReducedMotion();
   const multiplier = comboMultiplier(combo);
   const progress = totalStages === 0 ? 0 : (stage / totalStages) * 100;
 
@@ -79,7 +81,7 @@ export function HuntHeader({
               TIER_STYLE[tier],
             )}
           >
-            {tier}
+            {t(tier === "Beginner" ? "difficultyBeginner" : tier === "Intermediate" ? "difficultyIntermediate" : "difficultyAdvanced")}
           </span>
         </div>
 
@@ -91,6 +93,7 @@ export function HuntHeader({
       <div
         className="h-2 w-full overflow-hidden rounded-full bg-surface-container-highest"
         role="progressbar"
+        aria-label={t("progress")}
         aria-valuemin={0}
         aria-valuemax={totalStages}
         aria-valuenow={stage}
@@ -137,8 +140,8 @@ export function HuntHeader({
         {combo > 0 && (
           <motion.span
             key={combo}
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: [0.8, 1.18, 1], opacity: 1 }}
+            initial={reduce ? false : { scale: 0.8, opacity: 0 }}
+            animate={reduce ? { opacity: 1 } : { scale: [0.8, 1.18, 1], opacity: 1 }}
             transition={{ duration: 0.34, ease: "easeOut" }}
             /* Heat, and only heat.
                The flame was `tertiary` mint at multiplier 2 and above while its

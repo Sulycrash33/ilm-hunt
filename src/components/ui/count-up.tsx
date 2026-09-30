@@ -1,7 +1,9 @@
 "use client"
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import { useEffect, useRef, useState } from "react"
-import { useReducedMotion } from "framer-motion"
+
 
 /**
  * A number that counts up to its value instead of appearing at it.

@@ -1,6 +1,8 @@
 "use client"
 
-import { motion, useReducedMotion } from "framer-motion"
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { AlertTriangle, ChevronDown, Loader2, Trash2, Ban, RotateCcw } from "lucide-react"

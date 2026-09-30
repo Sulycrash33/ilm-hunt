@@ -1,9 +1,11 @@
 "use client";
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, Lock, CheckCircle2, Play } from "lucide-react";
-import { motion as m, useReducedMotion } from "framer-motion";
+import { motion as m } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { RANKS } from "@/lib/constants";
 import { useLanguage } from "@/contexts/LanguageContext";

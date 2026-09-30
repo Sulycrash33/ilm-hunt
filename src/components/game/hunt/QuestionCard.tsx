@@ -1,10 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { IslamicPattern } from "@/components/islamic-pattern";
+import { useGameReducedMotion } from "@/contexts/GameExperienceContext";
 
 interface QuestionCardProps {
   text: string;
-  /** Changes per question so the card animates in on each stage. */
+  /** A raised question surface with the app's existing khatim motif. */
   questionId: string;
 }
 
@@ -17,23 +19,16 @@ interface QuestionCardProps {
  * text at low opacity so it never competes with reading.
  */
 export function QuestionCard({ text, questionId }: QuestionCardProps) {
+  const reduce = useGameReducedMotion();
   return (
     <motion.div
       key={questionId}
-      initial={{ opacity: 0, y: 16 }}
+      initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="relative overflow-hidden rounded-xl bg-surface-container p-6 sm:p-8"
+      className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 to-surface-container p-6 sm:p-8"
     >
-      <svg
-        className="pointer-events-none absolute -bottom-6 -right-6 h-40 w-40 text-primary/10"
-        viewBox="0 0 100 100"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        {/* Eight-point star: two overlaid squares, the classic khatim motif. */}
-        <path d="M50 0 L61 39 L100 50 L61 61 L50 100 L39 61 L0 50 L39 39 Z" />
-      </svg>
+      <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true"><IslamicPattern variant="flat" /></div>
 
       <h2 className="relative font-headline text-2xl leading-snug text-on-surface sm:text-3xl">
         {text}

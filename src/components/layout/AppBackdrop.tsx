@@ -29,7 +29,7 @@ export function AppBackdrop() {
     <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
       <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/5 blur-[120px]" />
       <div className="absolute top-1/2 -left-24 h-80 w-80 rounded-full bg-secondary/5 blur-[100px]" />
-      <IslamicPattern variant="flat" />
+      <div className="absolute inset-0 opacity-50"><IslamicPattern variant="flat" /></div>
     </div>
   )
 }

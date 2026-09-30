@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ui/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { LanguageProvider } from "@/contexts/LanguageContext"
 import { TapCue } from "@/components/layout/TapCue"
+import { GameExperienceProvider } from "@/contexts/GameExperienceContext"
 import "./globals.css"
 
 const inter = Inter({
@@ -115,9 +116,11 @@ export default function RootLayout({
                 the sound setup screen are audible too — the sound screen in
                 particular, where a player is choosing a volume and every
                 press should confirm the choice. */}
+            <GameExperienceProvider>
             <TapCue />
             {children}
             <Toaster />
+            </GameExperienceProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

@@ -126,7 +126,7 @@
      through the `background` shorthand, which resets the image. --------- */
   .glass-card {
     background-color: rgba(23, 31, 51, 0.6);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40.00,15.00 L47.32,22.32 L57.68,22.32 L57.68,32.68 L65.00,40.00 L57.68,47.32 L57.68,57.68 L47.32,57.68 L40.00,65.00 L32.68,57.68 L22.32,57.68 L22.32,47.32 L15.00,40.00 L22.32,32.68 L22.32,22.32 L32.68,22.32 Z M0.00,-25.00 L7.32,-17.68 L17.68,-17.68 L17.68,-7.32 L25.00,0.00 L17.68,7.32 L17.68,17.68 L7.32,17.68 L0.00,25.00 L-7.32,17.68 L-17.68,17.68 L-17.68,7.32 L-25.00,0.00 L-17.68,-7.32 L-17.68,-17.68 L-7.32,-17.68 Z M80.00,-25.00 L87.32,-17.68 L97.68,-17.68 L97.68,-7.32 L105.00,0.00 L97.68,7.32 L97.68,17.68 L87.32,17.68 L80.00,25.00 L72.68,17.68 L62.32,17.68 L62.32,7.32 L55.00,0.00 L62.32,-7.32 L62.32,-17.68 L72.68,-17.68 Z M0.00,55.00 L7.32,62.32 L17.68,62.32 L17.68,72.68 L25.00,80.00 L17.68,87.32 L17.68,97.68 L7.32,97.68 L0.00,105.00 L-7.32,97.68 L-17.68,97.68 L-17.68,87.32 L-25.00,80.00 L-17.68,72.68 L-17.68,62.32 L-7.32,62.32 Z M80.00,55.00 L87.32,62.32 L97.68,62.32 L97.68,72.68 L105.00,80.00 L97.68,87.32 L97.68,97.68 L87.32,97.68 L80.00,105.00 L72.68,97.68 L62.32,97.68 L62.32,87.32 L55.00,80.00 L62.32,72.68 L62.32,62.32 L72.68,62.32 Z' fill='none' stroke='%23f0cd6d' stroke-opacity='0.08' stroke-width='1'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40.00,15.00 L47.32,22.32 L57.68,22.32 L57.68,32.68 L65.00,40.00 L57.68,47.32 L57.68,57.68 L47.32,57.68 L40.00,65.00 L32.68,57.68 L22.32,57.68 L22.32,47.32 L15.00,40.00 L22.32,32.68 L22.32,22.32 L32.68,22.32 Z M0.00,-25.00 L7.32,-17.68 L17.68,-17.68 L17.68,-7.32 L25.00,0.00 L17.68,7.32 L17.68,17.68 L7.32,17.68 L0.00,25.00 L-7.32,17.68 L-17.68,17.68 L-17.68,7.32 L-25.00,0.00 L-17.68,-7.32 L-17.68,-17.68 L-7.32,-17.68 Z M80.00,-25.00 L87.32,-17.68 L97.68,-17.68 L97.68,-7.32 L105.00,0.00 L97.68,7.32 L97.68,17.68 L87.32,17.68 L80.00,25.00 L72.68,17.68 L62.32,17.68 L62.32,7.32 L55.00,0.00 L62.32,-7.32 L62.32,-17.68 L72.68,-17.68 Z M0.00,55.00 L7.32,62.32 L17.68,62.32 L17.68,72.68 L25.00,80.00 L17.68,87.32 L17.68,97.68 L7.32,97.68 L0.00,105.00 L-7.32,97.68 L-17.68,97.68 L-17.68,87.32 L-25.00,80.00 L-17.68,72.68 L-17.68,62.32 L-7.32,62.32 Z M80.00,55.00 L87.32,62.32 L97.68,62.32 L97.68,72.68 L105.00,80.00 L97.68,87.32 L97.68,97.68 L87.32,97.68 L80.00,105.00 L72.68,97.68 L62.32,97.68 L62.32,87.32 L55.00,80.00 L62.32,72.68 L62.32,62.32 L72.68,62.32 Z' fill='none' stroke='%23f0cd6d' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E");
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 0.75rem;
@@ -134,7 +134,7 @@
 
   .glass-card-hover {
     background-color: rgba(23, 31, 51, 0.6);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40.00,15.00 L47.32,22.32 L57.68,22.32 L57.68,32.68 L65.00,40.00 L57.68,47.32 L57.68,57.68 L47.32,57.68 L40.00,65.00 L32.68,57.68 L22.32,57.68 L22.32,47.32 L15.00,40.00 L22.32,32.68 L22.32,22.32 L32.68,22.32 Z M0.00,-25.00 L7.32,-17.68 L17.68,-17.68 L17.68,-7.32 L25.00,0.00 L17.68,7.32 L17.68,17.68 L7.32,17.68 L0.00,25.00 L-7.32,17.68 L-17.68,17.68 L-17.68,7.32 L-25.00,0.00 L-17.68,-7.32 L-17.68,-17.68 L-7.32,-17.68 Z M80.00,-25.00 L87.32,-17.68 L97.68,-17.68 L97.68,-7.32 L105.00,0.00 L97.68,7.32 L97.68,17.68 L87.32,17.68 L80.00,25.00 L72.68,17.68 L62.32,17.68 L62.32,7.32 L55.00,0.00 L62.32,-7.32 L62.32,-17.68 L72.68,-17.68 Z M0.00,55.00 L7.32,62.32 L17.68,62.32 L17.68,72.68 L25.00,80.00 L17.68,87.32 L17.68,97.68 L7.32,97.68 L0.00,105.00 L-7.32,97.68 L-17.68,97.68 L-17.68,87.32 L-25.00,80.00 L-17.68,72.68 L-17.68,62.32 L-7.32,62.32 Z M80.00,55.00 L87.32,62.32 L97.68,62.32 L97.68,72.68 L105.00,80.00 L97.68,87.32 L97.68,97.68 L87.32,97.68 L80.00,105.00 L72.68,97.68 L62.32,97.68 L62.32,87.32 L55.00,80.00 L62.32,72.68 L62.32,62.32 L72.68,62.32 Z' fill='none' stroke='%23f0cd6d' stroke-opacity='0.08' stroke-width='1'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40.00,15.00 L47.32,22.32 L57.68,22.32 L57.68,32.68 L65.00,40.00 L57.68,47.32 L57.68,57.68 L47.32,57.68 L40.00,65.00 L32.68,57.68 L22.32,57.68 L22.32,47.32 L15.00,40.00 L22.32,32.68 L22.32,22.32 L32.68,22.32 Z M0.00,-25.00 L7.32,-17.68 L17.68,-17.68 L17.68,-7.32 L25.00,0.00 L17.68,7.32 L17.68,17.68 L7.32,17.68 L0.00,25.00 L-7.32,17.68 L-17.68,17.68 L-17.68,7.32 L-25.00,0.00 L-17.68,-7.32 L-17.68,-17.68 L-7.32,-17.68 Z M80.00,-25.00 L87.32,-17.68 L97.68,-17.68 L97.68,-7.32 L105.00,0.00 L97.68,7.32 L97.68,17.68 L87.32,17.68 L80.00,25.00 L72.68,17.68 L62.32,17.68 L62.32,7.32 L55.00,0.00 L62.32,-7.32 L62.32,-17.68 L72.68,-17.68 Z M0.00,55.00 L7.32,62.32 L17.68,62.32 L17.68,72.68 L25.00,80.00 L17.68,87.32 L17.68,97.68 L7.32,97.68 L0.00,105.00 L-7.32,97.68 L-17.68,97.68 L-17.68,87.32 L-25.00,80.00 L-17.68,72.68 L-17.68,62.32 L-7.32,62.32 Z M80.00,55.00 L87.32,62.32 L97.68,62.32 L97.68,72.68 L105.00,80.00 L97.68,87.32 L97.68,97.68 L87.32,97.68 L80.00,105.00 L72.68,97.68 L62.32,97.68 L62.32,87.32 L55.00,80.00 L62.32,72.68 L62.32,62.32 L72.68,62.32 Z' fill='none' stroke='%23f0cd6d' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E");
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 0.75rem;
@@ -560,5 +560,72 @@
 /* For content that scrolls beneath a fixed bottom bar: the bar's own height
    plus whatever the device reserves under it. */
 .pb-nav-safe {
-  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
+
+/* Shared interaction language: keyboard, pointer and touch all get feedback. */
+:where(a, button, input, select, textarea, [role="button"]):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+.game-button, .nav-destination, .filter-chip {
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+}
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(240, 205, 109, 0.15);
+  border-radius: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  background: linear-gradient(115deg, rgba(240, 205, 109, 0.10), rgba(127, 212, 176, 0.04) 65%), #111a2e;
+}
+.page-kicker {
+  color: #f0cd6d;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.6;
+}
+.glass-card {
+  background-color: rgba(23, 31, 51, 0.92);
+  border-radius: 1rem;
+  border-color: rgba(218, 226, 253, 0.10);
+  box-shadow: 0 8px 32px -20px rgba(0, 0, 0, 0.7);
+}
+.subject-card { background-color: #171f33; }
+.welcome-card { background-color: rgba(23, 31, 51, 0.92); }
+.interactive-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.subject-arrow { transition: transform 180ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .interactive-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(240, 205, 109, 0.35);
+    box-shadow: 0 12px 32px -18px rgba(240, 205, 109, 0.22);
+  }
+  .group:hover .subject-arrow { transform: translateX(3px); }
+  [dir="rtl"] .group:hover .subject-arrow { transform: rotate(180deg) translateX(3px); }
+}
+@media (min-width: 768px) {
+  .game-nav {
+    inset-inline: max(1rem, calc((100vw - 48rem) / 2));
+    bottom: 1rem;
+    border: 1px solid rgba(218, 226, 253, 0.14);
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .interactive-card:hover, .interactive-card:active, .glass-card-hover:hover, .btn-primary:active, .btn-secondary:active { transform: none !important; }
+}
+html[data-calm-effects="true"] *, html[data-calm-effects="true"] *::before, html[data-calm-effects="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-calm-effects="true"] .interactive-card:hover,
+html[data-calm-effects="true"] .interactive-card:active,
+html[data-calm-effects="true"] .glass-card-hover:hover,
+html[data-calm-effects="true"] .btn-primary:active,
+html[data-calm-effects="true"] .btn-secondary:active { transform: none !important; }

@@ -1,6 +1,8 @@
 "use client"
 
-import { motion, useReducedMotion } from "framer-motion"
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
+import { motion } from "framer-motion";
 import { useState } from "react"
 import { PremiumCard } from "@/components/ui/premium-card"
 import type { AuditEntry } from "@/app/(app)/admin/audit/actions"

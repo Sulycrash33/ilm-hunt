@@ -1,8 +1,10 @@
 "use client";
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Trophy, HeartCrack, Flame, Target, Gauge, Sparkles, BookOpen, Check, X, Clock } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, ArrowRight, Trophy, HeartCrack, Flame, Target, Gauge, Sparkles, BookOpen, Check, X, Clock, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -80,6 +82,29 @@ export function RunSummary({
 }: RunSummaryProps) {
   const { t, dir } = useLanguage();
   const [showReview, setShowReview] = useState(false);
+  const [mistakesOnly, setMistakesOnly] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"progressCopied" | "shareFailed" | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const mistakes = review.filter(entry => entry.timedOut || entry.correctIndex === null || entry.chosenIndex !== entry.correctIndex);
+  const shownReview = mistakesOnly ? mistakes : review;
+  async function shareProgress() {
+    if (sharing) return;
+    setSharing(true);
+    setShareStatus(null);
+    const text = t("shareProgressText", { xp: summary.xp, accuracy: summary.accuracy });
+    try {
+      if (navigator.share) await navigator.share({ title: "Ilm Hunt", text });
+      else { await navigator.clipboard.writeText(text); setShareStatus("progressCopied"); }
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) setShareStatus("shareFailed");
+    } finally { setSharing(false); }
+  }
+  async function copyProgress() {
+    try {
+      await navigator.clipboard.writeText(t("shareProgressText", { xp: summary.xp, accuracy: summary.accuracy }));
+      setShareStatus("progressCopied");
+    } catch { setShareStatus("shareFailed"); }
+  }
   // The arrow means "onward", so it follows the script rather than the screen.
   const Onward = dir === "rtl" ? ArrowLeft : ArrowRight;
   const won = summary.status === "won";
@@ -126,6 +151,8 @@ export function RunSummary({
           {won ? t("huntComplete") : t("outOfLives")}
         </h2>
 
+        <p className="mx-auto max-w-lg text-sm leading-relaxed text-on-surface-variant">{t(won ? "successEncouragement" : "learningEncouragement")}</p>
+
         {summary.flawless && (
           <p className="inline-flex items-center gap-1.5 rounded-full bg-tertiary/15 px-3 py-1 text-sm font-semibold text-tertiary">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -156,7 +183,7 @@ export function RunSummary({
             initial={reduce ? false : { scale: 0.3, rotate: -14 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 200, damping: 12, delay: 0.35 }}
-            className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-tertiary/20 shadow-[0_0_34px_-4px_rgba(255,138,76,0.7)]"
+            className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-tertiary/20 shadow-[0_0_34px_-4px_rgba(127,212,176,0.4)]"
           >
             <RankIcon className={cn("h-8 w-8", progress.rank.theme)} aria-hidden="true" />
           </motion.div>
@@ -204,7 +231,7 @@ export function RunSummary({
               needed saying once, loudly. */}
         </div>
 
-        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container-highest">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container-highest" role="progressbar" aria-label={t("progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress.percent)}>
           <motion.div
             className="h-full rounded-full bg-primary"
             initial={{ width: 0 }}
@@ -226,6 +253,7 @@ export function RunSummary({
             type="button"
             onClick={() => setShowReview((v) => !v)}
             aria-expanded={showReview}
+            aria-controls="run-answer-review"
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-on-surface transition-colors hover:bg-white/5"
           >
             <BookOpen className="h-4 w-4 text-secondary" aria-hidden="true" />
@@ -233,13 +261,17 @@ export function RunSummary({
           </button>
 
           {showReview && (
-            <div className="space-y-3">
+            <div id="run-answer-review" className="space-y-3">
               <div className="text-center">
                 <h3 className="font-headline text-lg text-on-surface">{t("roundReviewTitle")}</h3>
                 <p className="text-xs text-on-surface-variant">{t("roundReviewHint")}</p>
               </div>
 
-              {review.map((entry) => (
+              <div className="flex flex-wrap justify-center gap-2" role="group" aria-label={t("roundReviewTitle")}>
+                <Button variant={!mistakesOnly ? "default" : "outline"} aria-pressed={!mistakesOnly} onClick={() => setMistakesOnly(false)}>{t("allAnswers")} ({review.length})</Button>
+                <Button variant={mistakesOnly ? "default" : "outline"} disabled={mistakes.length === 0} aria-pressed={mistakesOnly} onClick={() => setMistakesOnly(true)}>{t("onlyMistakes")} ({mistakes.length})</Button>
+              </div>
+              {shownReview.map((entry) => (
                 <ReviewCard key={`${entry.stage}-${entry.text.slice(0, 24)}`} entry={entry} />
               ))}
             </div>
@@ -248,6 +280,8 @@ export function RunSummary({
       )}
 
       <div className="space-y-3">
+        <div className="flex flex-wrap gap-2"><Button variant="outline" className="min-w-0 flex-1" disabled={sharing} onClick={shareProgress}><Share2 className="h-4 w-4" aria-hidden="true" />{t("shareProgress")}</Button><Button variant="ghost" className="min-w-0 flex-1" onClick={copyProgress}>{t("copyProgress")}</Button></div>
+        <p role="status" aria-live="polite" className="text-center text-sm text-on-surface-variant">{shareStatus ? t(shareStatus) : ""}</p>
         {nextLevelHref && (
           <Button asChild size="lg" className="w-full">
             <Link href={nextLevelHref}>
