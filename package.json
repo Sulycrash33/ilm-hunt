@@ -11,6 +11,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:engine": "tsx scripts/check-hunt-engine.ts",
+    "test:clock": "tsx scripts/check-hunt-clock.ts",
     "test:i18n": "tsx scripts/check-i18n.ts",
     "test:narration": "tsx scripts/check-narration.ts",
     "seed:build": "tsx scripts/seed-content/emit.ts",

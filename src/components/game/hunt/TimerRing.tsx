@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface TimerRingProps {
   /** Seconds remaining. */
@@ -21,6 +22,7 @@ interface TimerRingProps {
  * ten seconds.
  */
 export function TimerRing({ remaining, total, frozen = false }: TimerRingProps) {
+  const { t } = useLanguage();
   const safeTotal = total > 0 ? total : 1;
   const fraction = Math.max(0, Math.min(1, remaining / safeTotal));
   const radius = 26;
@@ -32,7 +34,7 @@ export function TimerRing({ remaining, total, frozen = false }: TimerRingProps) 
       className="relative h-16 w-16 shrink-0"
       role="timer"
       aria-live="off"
-      aria-label={`${Math.ceil(remaining)} seconds remaining`}
+      aria-label={t("soloTimeRemaining", { count: Math.max(0, Math.ceil(remaining)) })}
     >
       <svg className="h-full w-full -rotate-90" viewBox="0 0 64 64" aria-hidden="true">
         <circle
