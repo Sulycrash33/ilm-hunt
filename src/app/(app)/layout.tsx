@@ -1,164 +1,24 @@
 "use client"
 
-import { motion } from "framer-motion"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { AppBackdrop } from "@/components/layout/AppBackdrop"
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar"
 import { TimezoneSync } from "@/components/layout/TimezoneSync"
-import type { Translations } from "@/lib/i18n"
+import { BottomNavBar } from "@/components/layout/BottomNavBar"
 
-const navItems: { labelKey: keyof Translations; href: string; icon: React.ReactNode }[] = [
-  {
-    labelKey: "home" as keyof Translations,
-    href: "/home",
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-      </svg>
-    ),
-  },
-  {
-    labelKey: "learning" as keyof Translations,
-    href: "/quiz",
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" />
-      </svg>
-    ),
-  },
-  {
-    labelKey: "rankings" as keyof Translations,
-    href: "/leaderboard",
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z" />
-      </svg>
-    ),
-  },
-  {
-    labelKey: "shop" as keyof Translations,
-    href: "/store",
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.78 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm6 16H6V8h2v2c0 .55.45 1 1 1s1-.45 1-1V8h4v2c0 .55.45 1 1 1s1-.45 1-1V8h2v12z" />
-      </svg>
-    ),
-  },
-  {
-    labelKey: "profile" as keyof Translations,
-    href: "/profile",
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-      </svg>
-    ),
-  },
-]
-
-/**
- * Is this route a question on the clock?
- *
- * The mode runs and the daily challenge live under `/play`, a level run is
- * `/quiz/<category>/<tier>`, and `/review` replays a set the same way. The
- * category grid (`/quiz`) and a category's level path (`/quiz/<category>`) are
- * browsing, not playing, so they keep the nav.
- */
-function isRunRoute(pathname: string): boolean {
-  if (pathname.startsWith("/play/")) return true
-  if (pathname === "/review" || pathname.startsWith("/review/")) return true
-  return /^\/quiz\/[^/]+\/[^/]+/.test(pathname)
+function isRunRoute(pathname: string) {
+  return pathname.startsWith("/play/") || pathname === "/review" ||
+    pathname.startsWith("/review/") || /^\/quiz\/[^/]+\/[^/]+/.test(pathname)
 }
 
-export default function AppLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { dir } = useLanguage()
   const inRun = isRunRoute(pathname)
-  const { t, dir } = useLanguage()
-
-  return (
-    <div dir={dir} className="relative min-h-[100dvh] bg-background">
-      <ServiceWorkerRegistrar />
-      {/* Reports this browser's timezone once per session, so the day turns at
-          the player's midnight rather than at 00:00 UTC. Renders nothing; see
-          `TimezoneSync` for what is and is not sent. Mounted in the layout
-          because every signed-in screen depends on the answer. */}
-      <TimezoneSync />
-
-      {/* The same field onboarding sits on, from the same file. This used to be
-          a hand-copied duplicate of `OnboardingBackdrop`, and it had drifted:
-          it drew the khatim `masked`, which fades to nothing about a screenful
-          down, so the ornament that carries the whole opening flow petered out
-          on every page of the actual game — the pages that scroll furthest.
-          `AppBackdrop` holds an even field, and the drifting names stay behind
-          onboarding alone. See that file for why. */}
-      <AppBackdrop />
-
-      {/* Main Content */}
-      <main className={`relative z-10 ${inRun ? "pb-8" : "pb-nav-safe md:pb-8"}`}>{children}</main>
-
-      {/* Bottom Navigation — hidden while a question is on the clock.
-
-          Two reasons, and the first is a plain layout bug. The nav is
-          `position: fixed` at the bottom of every page, and the run screen puts
-          the lifeline dock and the "Why it's right" explanation at the bottom
-          of its column. Measured in a real browser at 412×915: the nav sat on
-          top of both — the LIFELINES heading was half covered, and the
-          explanation for a wrong answer was cut off mid-sentence. `pb-nav-safe`
-          reserves room for the nav, but the run's own content is taller than
-          the reserve.
-
-          The second is the reason the pause button went. A timed question with
-          five one-tap exits to other pages is a timed question a player can
-          step out of; hiding the chrome for the length of a run is what every
-          game of this shape does, and it is the other half of "the clock means
-          something". The run has its own way out — "Exit Quiz", top left. */}
-      {!inRun && (
-      <nav className="fixed bottom-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-around items-center py-2 pb-safe">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`
-                    flex flex-col items-center justify-center
-                    px-3 py-2 rounded-xl
-                    transition-all duration-200
-                    ${isActive
-                      ? "bg-primary-container/20 text-primary"
-                      : "text-on-surface-variant/70 hover:bg-white/5"
-                    }
-                  `}
-                >
-                  <motion.div
-                    whileTap={{ scale: 0.9 }}
-                    className={isActive ? "text-primary" : ""}
-                  >
-                    {item.icon}
-                  </motion.div>
-                  <span className="font-label-caps text-label-caps mt-1">
-                    {t(item.labelKey)}
-                  </span>
-                  {isActive && (
-                    <motion.div
-                      layoutId="nav-indicator"
-                      className="absolute -bottom-1 w-8 h-1 bg-primary rounded-full"
-                    />
-                  )}
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      </nav>
-      )}
-    </div>
-  )
+  return <div dir={dir} className="relative min-h-[100dvh] bg-background">
+    <ServiceWorkerRegistrar /><TimezoneSync /><AppBackdrop />
+    <div className={`relative z-10 ${inRun ? "pb-8" : "pb-nav-safe"}`}>{children}</div>
+    {!inRun && <BottomNavBar />}
+  </div>
 }

@@ -1,7 +1,9 @@
 "use client"
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import { Lock } from "lucide-react"
-import { motion, useReducedMotion } from "framer-motion"
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils"
 import { RARITY_STYLES, type AchievementRarity } from "@/lib/design-tokens"
 import { useLanguage } from "@/contexts/LanguageContext"

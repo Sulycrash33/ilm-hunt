@@ -1,7 +1,9 @@
 "use client";
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Lightbulb, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -772,11 +774,14 @@ export function HuntView({
             label={option}
             index={index}
             disabled={locked}
+            pending={grading && selected === index}
             state={optionState({ index, selected, grade, eliminated })}
             onSelect={() => handleAnswer(index)}
           />
         ))}
       </div>
+
+      <p role="status" aria-live="polite" aria-atomic="true" className="min-h-5 text-center text-sm text-on-surface-variant">{grading ? t("checkingAnswer") : grade ? t(grade.correct ? "correct" : "incorrect") : ""}</p>
 
       {/* The pause button is gone. It stopped a clock that is being scored.
 

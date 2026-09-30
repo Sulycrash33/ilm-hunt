@@ -1,8 +1,10 @@
 "use client"
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import { useState } from "react"
 import Link from "next/link"
-import { motion, useReducedMotion } from "framer-motion"
+import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Hand, CheckCircle2, Flame, Trophy, Crown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { OnboardingBackdrop } from "@/components/layout/OnboardingBackdrop"

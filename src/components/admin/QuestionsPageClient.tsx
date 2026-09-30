@@ -1,6 +1,8 @@
 "use client"
 
-import { motion, useReducedMotion } from "framer-motion"
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
+import { motion } from "framer-motion";
 import { useEffect, useState, useTransition } from "react"
 import { BadgeCheck, ChevronLeft, ChevronRight, Loader2, Pencil, X } from "lucide-react"
 import { PremiumCard } from "@/components/ui/premium-card"

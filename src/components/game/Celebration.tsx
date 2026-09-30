@@ -1,8 +1,10 @@
 "use client";
 
+import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
+
 import { useEffect, useState } from "react";
 import Confetti from "react-confetti";
-import { useReducedMotion } from "framer-motion";
+
 
 /**
  * The payoff burst on a won run.

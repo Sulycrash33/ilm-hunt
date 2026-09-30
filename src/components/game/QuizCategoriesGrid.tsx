@@ -1,177 +1,77 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { ArrowRight, BookOpen, Search, Shuffle, X, CheckCircle2 } from "lucide-react"
 import { PremiumCard } from "@/components/ui/premium-card"
-import { PremiumBadge } from "@/components/ui/premium-badge"
+import { PremiumButton } from "@/components/ui/premium-button"
 import { useLanguage } from "@/contexts/LanguageContext"
 import type { QuizCategory } from "@/lib/quiz-service"
+import { filterSubjects, type SubjectFilter } from "@/lib/subject-discovery"
 
 export function QuizCategoriesGrid({ categories }: { categories: QuizCategory[] }) {
   const { t, dir } = useLanguage()
-  // The size of the question bank is deliberately not shown anywhere on this
-  // screen. It used to be, twice: once in the line under the heading and once
-  // as a stat tile three times the size of the body text. A total tells a
-  // player where the game ends, and everything after that is measured against
-  // finishing rather than against learning. Working it out from nine levels
-  // and a subject count is fair game; printing it is not. **Do not add it
-  // back.** `answeredCount` stays — that is the player's own record, not the
-  // shape of the bank.
-  const totalAnswered = categories.reduce((s, c) => s + c.answeredCount, 0)
+  const router = useRouter()
+  const [query, setQuery] = useState("")
+  const [filter, setFilter] = useState<SubjectFilter>("all")
+  const results = useMemo(() => filterSubjects(categories, query, filter), [categories, query, filter])
+  const totalAnswered = categories.reduce((sum, category) => sum + category.answeredCount, 0)
+  const playable = results.filter(category => category.publishedCount > 0)
+  const filters = [{ value: "all", label: "allSubjects" }, { value: "started", label: "startedSubjects" }, { value: "new", label: "newSubjects" }] as const
 
-  return (
-    <div dir={dir} className="min-h-[100dvh] px-5 py-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
-      >
-        <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary mb-2">
-          {t("knowledgeCategories")}
-        </h1>
-        <p className="text-on-surface-variant">
-          {categories.length} {t("categories").toLowerCase()} ·{" "}
-          {totalAnswered} {t("questionsAnswered")}
-        </p>
-
-        {/* The way back to the rules. Every category here is nine locked
-            tiers deep, and a player who signed up before the explainer
-            existed — or who skipped it — has nowhere else to find out why. */}
-        <Link
-          href="/onboarding/how-it-works"
-          className="mt-3 inline-block text-sm text-primary underline-offset-4 hover:underline"
-        >
-          {t("howItWorksLink")}
-        </Link>
-      </motion.div>
-
-      {/* Stats Overview */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-card p-6 mb-8"
-      >
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div>
-            <p className="font-bold text-3xl text-primary">{categories.length}</p>
-            <p className="font-label-caps text-label-caps text-on-surface-variant">
-              {t("categories").toUpperCase()}
-            </p>
-          </div>
-          <div>
-            <p className="font-bold text-3xl text-tertiary">{totalAnswered}</p>
-            <p className="font-label-caps text-label-caps text-on-surface-variant">
-              {t("completedLabel").toUpperCase()}
-            </p>
-          </div>
+  return <main dir={dir} className="mx-auto min-h-[100dvh] max-w-7xl px-5 py-6 sm:py-10">
+    <header className="page-hero mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div><p className="page-kicker">{t("knowledgeCategories")}</p><h1 className="mt-2 max-w-2xl font-serif text-3xl leading-tight text-on-surface sm:text-4xl">{t("discoverSubjects")}</h1></div>
+        <div className="flex gap-4 rounded-2xl border border-white/10 bg-background/40 px-5 py-3">
+          <div><strong className="block text-xl text-primary">{categories.length}</strong><span className="text-xs text-on-surface-variant">{t("categories")}</span></div>
+          <div className="border-s border-white/10 ps-4"><strong className="block text-xl text-tertiary">{totalAnswered.toLocaleString()}</strong><span className="text-xs text-on-surface-variant">{t("questionsAnswered")}</span></div>
         </div>
-      </motion.div>
-
-      {/* Categories Grid */}
-      {categories.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-12"
-        >
-          <span className="text-6xl mb-4 block">📚</span>
-          <p className="text-on-surface-variant">{t("comingSoon")}</p>
-        </motion.div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categories.map((category, index) => {
-            const hasQuestions = category.publishedCount > 0
-
-            return (
-              <motion.div
-                key={category.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                {hasQuestions ? (
-                  <Link href={`/quiz/${category.slug}`}>
-                    <PremiumCard
-                      hover
-                      className="p-6 h-full"
-                    >
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary-container/20 flex items-center justify-center">
-                          <span className="text-2xl">{category.icon || "📚"}</span>
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-on-surface">
-                            {category.name}
-                          </h3>
-                          {category.description && (
-                            <p className="text-sm text-on-surface-variant line-clamp-1">
-                              {category.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      {/* The player's own count, and no denominator.
-
-                          This was a `PremiumProgress` filled to
-                          `answeredCount / publishedCount`, which broke two
-                          rules at once.
-
-                          It printed the percentage TWICE. `PremiumProgress`
-                          renders `label` on the left and the computed
-                          percentage on the right, and the label passed in was
-                          that same percentage — so every card read "0%  0%",
-                          twenty-nine times down the screen, fifty-eight
-                          identical numbers on one page.
-
-                          And the denominator was the size of the bank. This
-                          project's oldest product rule is that a total hands
-                          the player something to finish instead of something
-                          to learn; it was taken off `/intro` and off this
-                          page's heading, and then left on every card. A
-                          seeker who cleared forty questions of Aqeedah saw
-                          "7%", which is a discouraging way to describe a good
-                          week — and the measured research on progress bars
-                          says exactly that: a large denominator lowers
-                          completion rather than raising it.
-
-                          A count about the player is explicitly fine, and is
-                          all this needs to be. */}
-                      {category.answeredCount > 0 && (
-                        <p className="font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant/70">
-                          {category.answeredCount} {t("questionsAnswered")}
-                        </p>
-                      )}
-                    </PremiumCard>
-                  </Link>
-                ) : (
-                  <PremiumCard hover={false} className="p-6 h-full opacity-60">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-surface-container-highest flex items-center justify-center">
-                        <span className="text-2xl">{category.icon || "📚"}</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-on-surface">
-                          {category.name}
-                        </h3>
-                        {category.description && (
-                          <p className="text-sm text-on-surface-variant line-clamp-1">
-                            {category.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <PremiumBadge variant="secondary" size="sm">
-                      {t("comingSoon")}
-                    </PremiumBadge>
-                  </PremiumCard>
-                )}
-              </motion.div>
-            )
-          })}
+      </div>
+      <Link href="/onboarding/how-it-works" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">{t("howItWorksLink")}<ArrowRight className="ms-2 rtl:rotate-180" size={16} aria-hidden="true" /></Link>
+    </header>
+    <div className="mb-6 flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-0 flex-1 basis-60">
+          <Search size={20} aria-hidden="true" className="pointer-events-none absolute start-4 top-3.5 text-on-surface-variant" />
+          <label htmlFor="subject-search" className="sr-only">{t("searchSubjects")}</label>
+          <input id="subject-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("searchSubjects")}
+            className="h-12 w-full rounded-xl border border-white/15 bg-surface-container ps-12 pe-12 text-on-surface placeholder:text-on-surface-variant" />
+          {query && <button type="button" onClick={() => setQuery("")} aria-label={t("clearSearch")} className="absolute end-1 top-1 flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/10"><X size={18} aria-hidden="true" /></button>}
         </div>
-      )}
+        <PremiumButton variant="secondary" size="sm" disabled={!playable.length} onClick={() => {
+          const category = playable[Math.floor(Math.random() * playable.length)]
+          if (category) router.push(`/quiz/${category.slug}`)
+        }}><Shuffle size={18} aria-hidden="true" />{t("surpriseSubject")}</PremiumButton>
+      </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t("allSubjects")}>{filters.map(item =>
+        <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)} className={`filter-chip min-h-11 rounded-full border px-4 py-2 text-sm font-semibold ${filter === item.value ? "border-primary/50 bg-primary/10 text-primary" : "border-white/10 bg-surface-container text-on-surface-variant hover:border-white/30"}`}>{t(item.label)}</button>
+      )}</div>
+      <p role="status" aria-live="polite" aria-atomic="true" className="text-sm text-on-surface-variant">{results.length} {t("categories")}</p>
     </div>
-  )
+    {results.length === 0 ? <div className="glass-card p-8 text-center">
+      <BookOpen size={36} className="mx-auto mb-4 text-primary" aria-hidden="true" />
+      <p className="mb-4 text-on-surface-variant">{categories.length ? t("noSubjectsFound") : t("comingSoon")}</p>
+      {!!categories.length && <PremiumButton variant="secondary" onClick={() => { setQuery(""); setFilter("all") }}>{t("clearSearch")}</PremiumButton>}
+    </div> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {results.map(category => {
+        const available = category.publishedCount > 0
+        const content = <PremiumCard animate={false} hover={available} className={`subject-card h-full p-5 sm:p-6 ${!available ? "opacity-60" : ""}`}>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${category.answeredCount > 0 ? "border-tertiary/25 bg-tertiary/10 text-tertiary" : "border-primary/25 bg-primary/10 text-primary"}`}><BookOpen size={24} aria-hidden="true" /></div>
+            {category.answeredCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-tertiary/10 px-3 py-1 text-xs text-tertiary"><CheckCircle2 size={13} aria-hidden="true" />{t("startedSubjects")}</span>}
+          </div>
+          <h2 className="mb-2 text-lg font-bold text-on-surface">{category.name}</h2>
+          <p className="min-h-10 text-sm leading-relaxed text-on-surface-variant">{category.description}</p>
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+            <span className="text-sm font-semibold text-primary">{available ? t(category.answeredCount ? "continue" : "exploreSubject") : t("comingSoon")}</span>
+            {available && <ArrowRight size={18} className="subject-arrow text-primary rtl:rotate-180" aria-hidden="true" />}
+          </div>
+          {category.answeredCount > 0 && <p className="mt-2 text-xs text-on-surface-variant">{category.answeredCount.toLocaleString()} {t("questionsAnswered")}</p>}
+        </PremiumCard>
+        return available ? <Link key={category.id} href={`/quiz/${category.slug}`} className="group block rounded-2xl">{content}</Link> : <div key={category.id}>{content}</div>
+      })}
+    </div>}
+  </main>
 }

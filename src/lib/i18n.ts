@@ -1,6 +1,8 @@
+import { experienceCopy, type ExperienceCopy } from "./experience-copy"
+
 export type Locale = "en" | "ha" | "fr" | "ar" | "ms" | "id"
 
-export interface Translations {
+export interface Translations extends ExperienceCopy {
   // Common
   welcome: string
   welcomeBack: string
@@ -882,6 +884,7 @@ export interface Translations {
 }
 
 const enTranslations: Translations = {
+  ...experienceCopy.en,
   // Common
   welcome: "Welcome",
   welcomeBack: "Welcome Back",
@@ -1678,7 +1681,7 @@ const enTranslations: Translations = {
   barakahShort: "Barakah",
   introEyebrowOne: "The hunt",
   introTitleOne: "Not a quiz. A climb.",
-  introBodyOne: "Nine levels to every subject. Three lives to every run. Slip, and you take that level again. Nothing here is handed to you.",
+  introBodyOne: "Climb nine levels in every subject, with three lives in each level run. If you run out, try that level again. Every answer helps you learn, and Practice gives you time to think.",
   introEyebrowTwo: "The field",
   introTitleTwo: "Aqeedah to Tafsir",
   introBodyTwo: "Quran. Hadith. Seerah. Fiqh. And the sciences that carried them. Every one of them its own ladder, waiting.",
@@ -1702,6 +1705,7 @@ const enTranslations: Translations = {
 
 // Malay/Indonesian translations - culturally meaningful, not direct translations
 const msTranslations: Translations = {
+  ...experienceCopy.ms,
   // Common
   welcome: "Selamat Datang",
   welcomeBack: "Selamat Kembali",
@@ -2498,7 +2502,7 @@ const msTranslations: Translations = {
   barakahShort: "Barakah",
   introEyebrowOne: "Perburuan",
   introTitleOne: "Bukan kuiz. Satu pendakian.",
-  introBodyOne: "Sembilan tahap bagi setiap subjek. Tiga nyawa bagi setiap pusingan. Tergelincir, dan anda ulang tahap itu semula. Tiada apa di sini yang diberi percuma.",
+  introBodyOne: "Naiki sembilan tahap bagi setiap subjek, dengan tiga nyawa setiap pusingan tahap. Jika habis, cuba tahap itu semula. Setiap jawapan membantu anda belajar, dan Latihan memberi masa untuk berfikir.",
   introEyebrowTwo: "Medan",
   introTitleTwo: "Akidah hingga Tafsir",
   introBodyTwo: "Quran. Hadith. Sirah. Fiqh. Dan ilmu yang membawanya. Setiap satu ada tangganya sendiri, menanti.",
@@ -2522,6 +2526,7 @@ const msTranslations: Translations = {
 
 // Indonesian translations - culturally meaningful, adapted for Indonesian context
 const idTranslations: Translations = {
+  ...experienceCopy.id,
   // Common
   welcome: "Selamat Datang",
   welcomeBack: "Selamat Kembali",
@@ -3318,7 +3323,7 @@ const idTranslations: Translations = {
   barakahShort: "Berkah",
   introEyebrowOne: "Perburuan",
   introTitleOne: "Bukan kuis. Sebuah pendakian.",
-  introBodyOne: "Sembilan level untuk setiap subjek. Tiga nyawa untuk setiap ronde. Terpeleset, dan Anda mengulang level itu. Tidak ada yang gratis di sini.",
+  introBodyOne: "Naiki sembilan level di setiap topik, dengan tiga nyawa setiap ronde level. Jika habis, coba level itu lagi. Setiap jawaban membantumu belajar, dan Latihan memberi waktu untuk berpikir.",
   introEyebrowTwo: "Medan",
   introTitleTwo: "Akidah hingga Tafsir",
   introBodyTwo: "Quran. Hadis. Sirah. Fikih. Dan ilmu yang membawanya. Setiap satu punya tangganya sendiri, menanti.",
@@ -3342,6 +3347,7 @@ const idTranslations: Translations = {
 
 // Hausa translations
 const haTranslations: Translations = {
+  ...experienceCopy.ha,
   // Common
   welcome: "Barka da zuwa",
   welcomeBack: "Barka da dawowa",
@@ -4138,7 +4144,7 @@ const haTranslations: Translations = {
   barakahShort: "Albarka",
   introEyebrowOne: "Farauta",
   introTitleOne: "Ba jarrabawa ba. Hawa ne.",
-  introBodyOne: "Matakai tara ga kowane fanni. Rayuka uku ga kowane zagaye. Ka yi kuskure, sai ka sake wannan matakin. Ba a ba da komai kyauta a nan.",
+  introBodyOne: "Hau matakai tara a kowane darasi, da rayuka uku a kowace zagayen mataki. Idan sun ƙare, sake gwada matakin. Kowace amsa tana taimaka maka koyo, kuma atisaye yana ba ka lokacin tunani.",
   introEyebrowTwo: "Fili",
   introTitleTwo: "Daga Akida zuwa Tafsiri",
   introBodyTwo: "Alkur'ani. Hadisi. Sira. Fikihu. Da ilimin da ya ɗauke su. Kowanne yana da nasa matakan, yana jira.",
@@ -4162,6 +4168,7 @@ const haTranslations: Translations = {
 
 // French translations
 const frTranslations: Translations = {
+  ...experienceCopy.fr,
   // Common
   welcome: "Bienvenue",
   welcomeBack: "Content de vous revoir",
@@ -4958,7 +4965,7 @@ const frTranslations: Translations = {
   barakahShort: "Barakah",
   introEyebrowOne: "La chasse",
   introTitleOne: "Pas un quiz. Une ascension.",
-  introBodyOne: "Neuf niveaux par matière. Trois vies par manche. Un faux pas, et vous recommencez ce niveau. Rien ici ne vous est offert.",
+  introBodyOne: "Gravissez neuf niveaux par sujet, avec trois vies par partie de niveau. Si elles s’épuisent, réessayez ce niveau. Chaque réponse vous aide à apprendre, et le mode entraînement vous laisse réfléchir.",
   introEyebrowTwo: "Le terrain",
   introTitleTwo: "De l'Aqida au Tafsir",
   introBodyTwo: "Coran. Hadith. Sira. Fiqh. Et les sciences qui les ont portés. Chacune sa propre échelle, qui vous attend.",
@@ -4982,6 +4989,7 @@ const frTranslations: Translations = {
 
 // Arabic translations (RTL)
 const arTranslations: Translations = {
+  ...experienceCopy.ar,
   // Common
   welcome: "مرحباً",
   welcomeBack: "أهلاً بعودتك",
@@ -5778,7 +5786,7 @@ const arTranslations: Translations = {
   barakahShort: "بركة",
   introEyebrowOne: "الصيد",
   introTitleOne: "ليس اختباراً، بل ارتقاء.",
-  introBodyOne: "تسعة مستويات لكل موضوع. ثلاث محاولات في كل جولة. إن زللت، أعدت المستوى من أوله. لا شيء هنا يُمنح بلا جهد.",
+  introBodyOne: "اصعد تسعة مستويات في كل موضوع، بثلاث فرص في كل جولة مستوى. إذا نفدت، حاول المستوى مرة أخرى. كل إجابة تساعدك على التعلّم، ووضع التدريب يمنحك وقتاً للتفكير.",
   introEyebrowTwo: "الميدان",
   introTitleTwo: "من العقيدة إلى التفسير",
   introBodyTwo: "القرآن. الحديث. السيرة. الفقه. والعلوم التي حملتها. لكل واحد منها سُلّمه، ينتظرك.",

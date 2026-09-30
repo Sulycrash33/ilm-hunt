@@ -72,7 +72,7 @@ export default function LanguageSelectionPage() {
                       saveOnboardingSelection({ preferredLanguage: lang.code })
                     }}
                     dir={lang.dir}
-                    className={`flex items-center justify-between p-3 sm:p-4 rounded-xl border transition-all hover:bg-surface-container-high hover:border-primary/30 ${
+                    className={`interactive-card flex min-h-16 items-center justify-between p-3 sm:p-4 rounded-xl border transition-colors hover:bg-surface-container-high hover:border-primary/30 ${
                       lang.font || ""
                     }`}
                   >
@@ -80,13 +80,12 @@ export default function LanguageSelectionPage() {
                       <FlagIcon
                         code={lang.flag}
                         className="h-8 w-12 shrink-0 rounded-md"
-                        role="img"
-                        aria-label={`${lang.name} flag`}
+                        aria-hidden="true"
                       />
                       <span className="font-bold text-on-surface text-lg">{lang.name}</span>
                     </div>
                     <svg
-                      className="w-5 h-5 text-on-surface-variant"
+                      aria-hidden="true" className="w-5 h-5 text-on-surface-variant rtl:rotate-180"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
