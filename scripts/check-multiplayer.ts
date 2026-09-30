@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import vm from "node:vm"
 import ts from "typescript"
-import { coalescedRefresh, parseRoomCode, roomInvitePath, questionDeadline } from "../src/lib/multiplayer-experience"
+import { coalescedRefresh, parseRoomCode, roomInvitePath, questionDeadline, rankPlayers } from "../src/lib/multiplayer-experience"
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 async function main() {
@@ -15,6 +15,11 @@ async function main() {
   assert.equal(questionDeadline("2026-09-30T12:00:00Z", 30, 0), Date.parse("2026-09-30T12:00:30Z"))
   assert.equal(questionDeadline(undefined, 30, 1000), 31000)
   assert.equal(questionDeadline("bad", 30, 1000), 31000)
+  const standings = [{ id: "c", score: 40 }, { id: "b", score: 100 }, { id: "a", score: 100 }, { id: "d", score: 40 }]
+  assert.deepEqual(rankPlayers(standings).map(p => [p.id, p.rank]), [["a", 1], ["b", 1], ["c", 3], ["d", 3]])
+  assert.equal(standings[0].id, "c", "Ranking must not mutate room state")
+  assert.deepEqual(rankPlayers([{ id: "one", score: 0 }, { id: "two", score: 0 }]).map(p => p.rank), [1, 1])
+  assert.deepEqual(rankPlayers([]), [])
 
   let loads = 0
   const received: number[] = []

@@ -2,8 +2,9 @@
 
 import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
 
-import { questionDeadline } from "@/lib/multiplayer-experience"
-import { motion, AnimatePresence } from "framer-motion"
+import { questionDeadline, rankPlayers } from "@/lib/multiplayer-experience"
+import { playCue } from "@/lib/sound"
+import { motion } from "framer-motion"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { PremiumButton } from "@/components/ui/premium-button"
 import { PremiumBadge } from "@/components/ui/premium-badge"
@@ -28,6 +29,7 @@ interface Player {
 }
 
 interface LiveQuizProps {
+  answerPoints?: number | null
   restoredAnswer?: { selectedIndex: number; isCorrect: boolean } | null
   nextPending?: boolean
   question: Question
@@ -47,6 +49,7 @@ interface LiveQuizProps {
 
 export function LiveQuiz({
   question,
+  answerPoints = null,
   restoredAnswer,
   nextPending = false,
   questionNumber,
@@ -70,25 +73,32 @@ export function LiveQuiz({
   const activeQuestion = useRef(question.id)
   const deadline = useRef(0)
   const [submitting, setSubmitting] = useState(false)
+  const feedbackPlayed = useRef<string | null>(null)
 
   useEffect(() => {
     activeQuestion.current = question.id
-    deadline.current = questionDeadline(question.startedAt, timeLimit)
     answerLock.current = !!restoredAnswer
     setSubmitting(false)
     setSelectedChoice(restoredAnswer?.selectedIndex ?? null)
-    setTimeRemaining(Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000)))
     setHasAnswered(!!restoredAnswer)
-  }, [question.id, question.startedAt, timeLimit, restoredAnswer])
+  }, [question.id, restoredAnswer])
 
   useEffect(() => {
+    deadline.current = questionDeadline(question.startedAt, timeLimit)
+    setTimeRemaining(Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000)))
     const timer = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000))
       setTimeRemaining(remaining)
-      if (remaining === 0) setHasAnswered(true)
+      if (remaining === 0) { setHasAnswered(true); clearInterval(timer) }
     }, 250)
     return () => clearInterval(timer)
-  }, [question.id, timeLimit])
+  }, [question.id, question.startedAt, timeLimit])
+
+  useEffect(() => {
+    if (restoredAnswer || selectedChoice === null || lastAnswerCorrect === null || feedbackPlayed.current === question.id) return
+    feedbackPlayed.current = question.id
+    playCue(lastAnswerCorrect ? "correct" : "wrong")
+  }, [question.id, selectedChoice, lastAnswerCorrect, restoredAnswer])
 
   const handleAnswer = useCallback(async (index: number) => {
     if (hasAnswered || answerLock.current || Date.now() >= deadline.current) return
@@ -114,7 +124,7 @@ export function LiveQuiz({
     }
   }, [hasAnswered, question.id, timeLimit, onAnswer])
 
-  const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
+  const sortedPlayers = rankPlayers(players)
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -156,7 +166,15 @@ export function LiveQuiz({
             key={question.id}
             initial={reduce ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass-card p-6 mb-6"
+            className="glass-card p-6 mb-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            tabIndex={0}
+            role="group"
+            aria-label={t("battleKeyboardHint")}
+            onKeyDown={(event) => {
+              if (event.altKey || event.ctrlKey || event.metaKey || event.repeat || !/^[1-4]$/.test(event.key)) return
+              const index = Number(event.key) - 1
+              if (index < question.choices.length) { event.preventDefault(); void handleAnswer(index) }
+            }}
           >
             <h2 className="font-headline-md text-headline-md text-on-surface mb-6">
               {question.questionText}
@@ -179,8 +197,11 @@ export function LiveQuiz({
                     whileTap={!reduce && !hasAnswered ? { scale: 0.98 } : {}}
                     onClick={() => handleAnswer(index)}
                     disabled={hasAnswered || timeRemaining <= 0}
+                    aria-pressed={isSelected}
+                    aria-keyshortcuts={String(index + 1)}
                     className={`
                       p-4 rounded-xl border text-start transition-all
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
                       ${selectedWasCorrect
                         ? "bg-success/20 border-success"
                         : selectedWasWrong
@@ -215,8 +236,14 @@ export function LiveQuiz({
               })}
             </div>
           </motion.div>
-
-          <p role="status" className="mb-4 text-sm text-on-surface-variant">{hasAnswered && selectedChoice !== null ? lastAnswerCorrect === null ? t("checkingAnswer") : lastAnswerCorrect ? t("correct") : t("incorrect") : ""}</p>
+          <p className="mb-3 text-xs text-on-surface-variant">{t("battleKeyboardHint")}</p>
+          <div role="status" aria-atomic="true" className="mb-4 rounded-xl border border-white/10 bg-surface-container-high p-4">
+            <p className={`font-bold ${lastAnswerCorrect === true ? "text-tertiary" : "text-on-surface"}`}>
+              {selectedChoice !== null ? lastAnswerCorrect === null ? t("checkingAnswer") : lastAnswerCorrect ? t("correct") : t("incorrect") : timeRemaining === 0 ? t("battleTimeUp") : t("battleChooseAnswer")}
+            </p>
+            {answerPoints !== null && lastAnswerCorrect === true && <p className="mt-1 text-sm text-primary">{t("battleSpeedPoints", { count: answerPoints })}</p>}
+            {!isHost && hasAnswered && !submitting && <p className="mt-1 text-sm text-on-surface-variant">{t("battleWaitingHost")}</p>}
+          </div>
 
           {/* Next Question Button (Host Only) */}
           {isHost && hasAnswered && !submitting && (
@@ -238,7 +265,7 @@ export function LiveQuiz({
               {t("liveLeaderboard")}
             </h3>
             <div className="space-y-2">
-              {sortedPlayers.map((player, index) => (
+              {sortedPlayers.map((player) => (
                 <motion.div
                   key={player.id}
                   layout
@@ -252,9 +279,9 @@ export function LiveQuiz({
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-6 text-center font-bold ${
-                      index === 0 ? "text-medal-gold" : index === 1 ? "text-medal-silver" : index === 2 ? "text-medal-bronze" : "text-on-surface-variant"
+                      player.rank === 1 ? "text-medal-gold" : player.rank === 2 ? "text-medal-silver" : player.rank === 3 ? "text-medal-bronze" : "text-on-surface-variant"
                     }`}>
-                      {index + 1}
+                      {player.rank}
                     </span>
                     <span className="text-sm text-on-surface truncate max-w-[100px]">
                       {player.userName}

@@ -79,6 +79,7 @@ export default function MultiplayerPage() {
   const [hasAnswered, setHasAnswered] = useState(false)
   const [restoredAnswer, setRestoredAnswer] = useState<{ selectedIndex: number; isCorrect: boolean } | null>(null)
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null)
+  const [answerPoints, setAnswerPoints] = useState<number | null>(null)
 
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => () => { if (countdownTimer.current) clearInterval(countdownTimer.current) }, [])
@@ -124,7 +125,11 @@ export default function MultiplayerPage() {
   const applyActiveQuestion = useCallback((updatedRoom: QuizRoom) => {
     if (updatedRoom.status !== "in_progress") return
     const active = questionsRef.current.find((q) => q.orderNum === updatedRoom.currentQuestion)
-    if (!active || activeQuestionRef.current === active.id) return
+    if (!active || !active.startedAt) return
+    if (activeQuestionRef.current === active.id) {
+      setCurrentQuestion(previous => previous?.startedAt === active.startedAt ? previous : active)
+      return
+    }
     activeQuestionRef.current = active.id
     answerLock.current = false
     setErrorMessage(null)
@@ -134,6 +139,7 @@ export default function MultiplayerPage() {
     setTimeRemaining(active.timeLimit)
     setHasAnswered(false)
     setLastAnswerCorrect(null)
+    setAnswerPoints(null)
     setRestoredAnswer(null)
   }, [])
 
@@ -337,6 +343,7 @@ export default function MultiplayerPage() {
       )
       if (activeQuestionRef.current !== answeringQuestionId) return true
       setLastAnswerCorrect(result.isCorrect)
+      setAnswerPoints(result.pointsEarned)
       return true
     } catch (error) {
       console.error("Error submitting answer:", error)
@@ -468,6 +475,9 @@ export default function MultiplayerPage() {
           } catch { setConnection("error") }
           finally { roomActionLock.current = false; setRoomActionPending(false) }
         }}>{t("tryAgain")}</PremiumButton>}
+      </div>}
+      {roomId && (viewState === "quiz" || viewState === "countdown") && <div className="mb-5 flex justify-end">
+        <PremiumButton variant="secondary" size="sm" disabled={roomActionPending} onClick={handleLeave}>{t("leaveRoom")}</PremiumButton>
       </div>}
       {/* Home State */}
       {viewState === "home" && !restoring && (
@@ -625,6 +635,7 @@ export default function MultiplayerPage() {
           isHost={isHost}
           showResults={showResults}
           lastAnswerCorrect={lastAnswerCorrect}
+          answerPoints={answerPoints}
         />
       )}
 

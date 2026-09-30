@@ -8,6 +8,10 @@ import { PremiumBadge } from "@/components/ui/premium-badge"
 import { PremiumCard } from "@/components/ui/premium-card"
 import { PremiumAvatar } from "@/components/ui/premium-avatar"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { rankPlayers } from "@/lib/multiplayer-experience"
+import dynamic from "next/dynamic"
+
+const Celebration = dynamic(() => import("@/components/game/Celebration").then(module => module.Celebration), { ssr: false })
 
 interface Player {
   id: string
@@ -35,10 +39,11 @@ interface QuizResultsProps {
 export function QuizResults({ players, pending = false, currentUserId, onPlayAgain, onLeave, isHost = false }: QuizResultsProps) {
   const { t } = useLanguage()
   const reduce = useGameReducedMotion()
-  const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
+  const sortedPlayers = rankPlayers(players)
   const winner = sortedPlayers[0]
+  const leaders = sortedPlayers.filter(player => player.rank === 1)
   const currentUser = sortedPlayers.find((p) => p.id === currentUserId)
-  const currentUserRank = sortedPlayers.findIndex((p) => p.id === currentUserId) + 1
+  const currentUserRank = currentUser?.rank ?? 0
 
   const getMedal = (rank: number) => {
     switch (rank) {
@@ -53,6 +58,7 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
 
   return (
     <div className="max-w-2xl mx-auto">
+      {currentUser?.rank === 1 && currentUser.score > 0 && <Celebration active pieces={100} />}
       {/* Winner Celebration */}
       <motion.div
         initial={reduce ? false : { opacity: 0, scale: 0.8 }}
@@ -69,13 +75,22 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
         <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary mb-2">
           {t("quizComplete")}
         </h1>
-        <p className="text-on-surface-variant">
-          {t("winsWithMsg", { name: winner.userName, score: winner.score })}
+        <p className="break-words text-on-surface-variant">
+          {leaders.length > 1 ? t("battleSharedWin", { score: winner.score }) : t("winsWithMsg", { name: winner.userName, score: winner.score })}
         </p>
       </motion.div>
 
       {/* Podium */}
-      <motion.div
+      {leaders.length > 1 ? <PremiumCard className="mb-8 p-5">
+        <h2 className="mb-4 text-center font-bold text-primary">{t("battleJointLeaders")}</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {leaders.map(player => <div key={player.id} className="min-w-0 text-center">
+            <PremiumAvatar avatarId={player.avatarId} size="lg" />
+            <p className="mt-2 break-all font-bold text-on-surface">{player.userName}</p>
+            <p className="text-sm text-primary">{player.score} {t("score")}</p>
+          </div>)}
+        </div>
+      </PremiumCard> : <motion.div
         initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -85,10 +100,10 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
         {sortedPlayers[1] && (
           <div className="min-w-0 flex-1 text-center">
             <PremiumAvatar avatarId={sortedPlayers[1].avatarId} size="lg" />
-            <p className="font-bold text-on-surface mt-2 text-sm">{sortedPlayers[1].userName}</p>
+            <p className="break-all font-bold text-on-surface mt-2 text-sm">{sortedPlayers[1].userName}</p>
             <p className="text-xs text-on-surface-variant">{sortedPlayers[1].score} {t("score")}</p>
             <div className="w-20 h-20 bg-gradient-to-b from-medal-silver/20 to-transparent rounded-t-xl mt-2 flex items-center justify-center">
-              <span className="text-3xl">🥈</span>
+              <span className="text-3xl">{getMedal(sortedPlayers[1].rank)}</span>
             </div>
           </div>
         )}
@@ -101,7 +116,7 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
           >
             <PremiumAvatar avatarId={winner.avatarId} size="xl" ring ringColor="primary" />
           </motion.div>
-          <p className="font-bold text-on-surface mt-2">{winner.userName}</p>
+          <p className="break-all font-bold text-on-surface mt-2">{winner.userName}</p>
           <p className="text-sm text-primary font-bold">{winner.score} {t("score")}</p>
           <div className="w-24 h-28 bg-gradient-to-b from-warning/20 to-transparent rounded-t-xl mt-2 flex items-center justify-center">
             <span className="text-4xl">🥇</span>
@@ -112,14 +127,14 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
         {sortedPlayers[2] && (
           <div className="min-w-0 flex-1 text-center">
             <PremiumAvatar avatarId={sortedPlayers[2].avatarId} size="lg" />
-            <p className="font-bold text-on-surface mt-2 text-sm">{sortedPlayers[2].userName}</p>
+            <p className="break-all font-bold text-on-surface mt-2 text-sm">{sortedPlayers[2].userName}</p>
             <p className="text-xs text-on-surface-variant">{sortedPlayers[2].score} {t("score")}</p>
             <div className="w-20 h-16 bg-gradient-to-b from-warning-container/20 to-transparent rounded-t-xl mt-2 flex items-center justify-center">
-              <span className="text-3xl">🥉</span>
+              <span className="text-3xl">{getMedal(sortedPlayers[2].rank)}</span>
             </div>
           </div>
         )}
-      </motion.div>
+      </motion.div>}
 
       {/* Full Leaderboard */}
       <motion.div
@@ -139,19 +154,19 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 + index * 0.05 }}
                 className={`
-                  flex items-center justify-between p-3 rounded-lg
+                  flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg
                   ${player.id === currentUserId
                     ? "bg-primary/10 border border-primary/30"
                     : "bg-surface-container-high"
                   }
                 `}
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl w-10 text-center">{getMedal(index + 1)}</span>
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="text-2xl w-10 shrink-0 text-center">{getMedal(player.rank)}</span>
                   <PremiumAvatar avatarId={player.avatarId} size="sm" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-on-surface">{player.userName}</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="break-all font-bold text-on-surface">{player.userName}</span>
                       {player.id === currentUserId && (
                         <PremiumBadge variant="secondary" size="sm">{t("youBadge")}</PremiumBadge>
                       )}
@@ -161,7 +176,7 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
                     </p>
                   </div>
                 </div>
-                <div className="text-end">
+                <div className="shrink-0 text-end">
                   <p className="font-bold text-primary">{player.score} {t("score")}</p>
                   {player.streak >= 3 && (
                     <p className="text-xs text-tertiary">🔥 {t("bestStreakLabel", { streak: player.streak })}</p>
@@ -211,7 +226,7 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
         initial={reduce ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="flex gap-3"
+        className="flex flex-wrap sm:flex-nowrap gap-3"
       >
         <PremiumButton variant="secondary" fullWidth disabled={pending} onClick={onLeave}>
           {t("leaveRoom")}

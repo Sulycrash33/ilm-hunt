@@ -14,6 +14,16 @@ export function questionDeadline(startedAt: string | null | undefined, seconds: 
   return (Number.isFinite(start) ? start : now) + seconds * 1000
 }
 
+/** Equal scores share a rank; joining first must not decide a winner. */
+export function rankPlayers<T extends { id: string; score: number }>(players: T[]): Array<T & { rank: number }> {
+  const sorted = [...players].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+  let rank = 1
+  return sorted.map((player, index) => {
+    if (index > 0 && player.score !== sorted[index - 1].score) rank = index + 1
+    return { ...player, rank }
+  })
+}
+
 /** Batch bursts and serialize refreshes so older responses cannot overwrite newer ones. */
 export function coalescedRefresh<T>(load: () => Promise<T>, apply: (value: T) => void, onError: () => void, delay = 50) {
   let disposed = false

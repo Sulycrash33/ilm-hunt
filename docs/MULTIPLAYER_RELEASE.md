@@ -83,11 +83,13 @@ is claimed. An isolated single player event now reads a complete snapshot.
 2. Completed: verified function privileges and the database match lifecycle.
    After the app merge, smoke-test a two-browser match, including refresh,
    host departure, repeated clicks, restart and finishing.
-3. Merge the app pull request and verify Vercel deployment for `ilm-hunt` and
-   `www.ilmhunt.app`. Other Vercel projects are outside this release.
+3. Completed: merged PR #100 and verified the successful Vercel deployment for
+   `ilm-hunt` and `www.ilmhunt.app`. Signed-in production checks covered room
+   creation, copying the custom-domain invitation, refresh restoration and leave.
+   Other Vercel projects are outside this release.
 
 The migration was applied to production on 2026-09-30 at 21:28 UTC and verified
-against the live database. The app PR remains unmerged for the owner. A complete
+against the live database. The app PR #100 is merged and deployed. A complete
 interactive match in two browser sessions remains a post-merge smoke check;
 database lifecycle tests used three disposable identities within rollback-only
 transactions. Email-confirmation redirects and sending an invitation to another
