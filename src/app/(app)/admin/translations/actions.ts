@@ -6,6 +6,27 @@ import { revalidatePath } from "next/cache"
 // export async functions, and exporting `LOCALES` from here broke the build at
 // page-data collection while compiling perfectly well.
 import type { Locale, QueueCell, TranslationRow, FailedRow } from "./locales"
+import type { TranslationWorkerStatus } from "./worker-status"
+
+export async function getTranslationWorkerStatus(): Promise<
+  { ok: true; status: TranslationWorkerStatus | null } | { ok: false; error: string }
+> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("admin_translation_worker_status")
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: true, status: null }
+  return {
+    ok: true,
+    status: {
+      observedAt: data.observed_at,
+      httpStatus: Number(data.http_status),
+      claimed: Number(data.claimed ?? 0),
+      written: Number(data.written ?? 0),
+      rateLimited: Number(data.rate_limited ?? 0),
+      failed: Number(data.failed ?? 0),
+    },
+  }
+}
 
 /** Queue state, grouped by locale and status. Admin-gated in the database. */
 export async function getTranslationProgress(): Promise<

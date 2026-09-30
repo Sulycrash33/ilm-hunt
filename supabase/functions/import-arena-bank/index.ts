@@ -1,15 +1,15 @@
 /**
- * Imports the arena question bank from the repository.
+ * Imports the arena question bank from private Supabase Storage.
  *
  * ── Why the bank is fetched rather than embedded ──────────────────────────
  * 5,246 questions with explanations is about 3.7MB. As SQL literals that is a
  * migration nobody can read and no tool can comfortably carry. So the bank
- * lives at `scripts/question-bank/arena/bank.json`, version-controlled where
- * it can be diffed and reviewed, and this function reads it from the repo at a
- * pinned ref and writes it in.
+ * is uploaded as `content-banks/arena/bank.json` in a private bucket. This
+ * service-role function reads it after verifying a trusted worker or admin.
+ * A public repository must never be a distribution channel for answer keys.
  *
  * That also makes revision cheap, which is the point: the owner expects to
- * adjust questions on demand. Editing the JSON and re-running is the whole
+ * adjust questions on demand. Uploading revised JSON and re-running is the
  * workflow, and re-running is safe — see the idempotency note below.
  *
  * ── The pool is not set here, and cannot be ───────────────────────────────
@@ -35,9 +35,10 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizePrivilegedRequest } from "../_shared/privileged-request.ts";
 
-const REPO = "https://raw.githubusercontent.com/Sulycrash33/ilm-quiz";
-const PATH = "scripts/question-bank/arena/bank.json";
+const BUCKET = "content-banks";
+const PATH = "arena/bank.json";
 
 interface BankRow {
   ref: number;
@@ -57,19 +58,19 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "supabase env missing" }), { status: 500 });
   }
 
-  let ref = "main";
+  const supabase = createClient(url, serviceKey);
+  const denied = await authorizePrivilegedRequest(req, supabase, true);
+  if (denied) return denied;
+
   let limit = 6000;
   let dryRun = false;
   try {
     const body = await req.json();
-    if (typeof body?.ref === "string" && body.ref) ref = body.ref;
-    if (typeof body?.limit === "number") limit = body.limit;
+    if (Number.isFinite(body?.limit)) limit = Math.max(1, Math.min(6000, Math.floor(body.limit)));
     dryRun = Boolean(body?.dryRun);
   } catch {
     /* defaults stand */
   }
-
-  const supabase = createClient(url, serviceKey);
 
   // The arena categories, by slug. A bank row naming a slug that does not
   // exist is reported rather than guessed at.
@@ -91,14 +92,21 @@ Deno.serve(async (req) => {
     );
   }
 
-  const res = await fetch(`${REPO}/${ref}/${PATH}`);
-  if (!res.ok) {
+  const { data: bankFile, error: bankError } = await supabase.storage.from(BUCKET).download(PATH);
+  if (bankError || !bankFile) {
     return new Response(
-      JSON.stringify({ error: `bank fetch failed: ${res.status}`, ref }),
+      JSON.stringify({ error: "Private arena bank is unavailable. Upload arena/bank.json to the content-banks bucket." }),
       { status: 502, headers: { "Content-Type": "application/json" } },
     );
   }
-  const bank = (await res.json()) as BankRow[];
+  let bank: BankRow[];
+  try {
+    const parsed = JSON.parse(await bankFile.text());
+    if (!Array.isArray(parsed)) throw new Error("Expected a question array");
+    bank = parsed;
+  } catch {
+    return Response.json({ error: "Private arena bank is not a JSON array" }, { status: 422 });
+  }
 
   // What is already in. `seed_batch` is the natural key.
   const present = new Set<string>();
@@ -150,7 +158,7 @@ Deno.serve(async (req) => {
   }
 
   const summary = {
-    ref,
+    source: `${BUCKET}/${PATH}`,
     inBank: bank.length,
     alreadyPresent: present.size,
     toInsert: rows.length,

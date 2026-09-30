@@ -53,3 +53,4 @@ studio.json
 # Python bytecode from the question-bank authoring scripts
 __pycache__/
 *.pyc
+supabase/.temp/

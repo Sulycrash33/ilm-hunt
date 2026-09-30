@@ -40,6 +40,7 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizePrivilegedRequest } from "../_shared/privileged-request.ts";
 
 const LOCALE_NAMES: Record<string, string> = {
   ha: "Hausa",
@@ -127,6 +128,12 @@ async function translateOne(sourceText: string, locale: string, apiKey: string):
 }
 
 Deno.serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const denied = await authorizePrivilegedRequest(req, supabase, true);
+  if (denied) return denied;
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) {
     return Response.json({ error: "GEMINI_API_KEY is not set" }, { status: 500 });
@@ -145,11 +152,6 @@ Deno.serve(async (req) => {
   } catch {
     // No body, or not JSON. The defaults above are a reasonable single batch.
   }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
 
   const { data, error } = await supabase.rpc("hadith_translation_candidates", {
     p_limit: limit,

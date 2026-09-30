@@ -34,6 +34,7 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizePrivilegedRequest } from "../_shared/privileged-request.ts";
 
 const LOCALE_NAMES: Record<string, string> = {
   ha: "Hausa",
@@ -216,6 +217,9 @@ Deno.serve(async (req) => {
   if (!url || !serviceKey) {
     return new Response(JSON.stringify({ error: "supabase env missing" }), { status: 500 });
   }
+  const supabase = createClient(url, serviceKey);
+  const denied = await authorizePrivilegedRequest(req, supabase);
+  if (denied) return denied;
   if (!apiKey) {
     // Named plainly so the admin page can say what is wrong rather than
     // showing a queue that mysteriously never drains.
@@ -232,8 +236,6 @@ Deno.serve(async (req) => {
   } catch {
     /* an empty body is fine; the default stands */
   }
-
-  const supabase = createClient(url, serviceKey);
 
   const { data: batch, error: claimError } = await supabase.rpc("claim_translation_batch", {
     p_limit: limit,

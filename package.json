@@ -15,7 +15,8 @@
     "test:narration": "tsx scripts/check-narration.ts",
     "seed:build": "tsx scripts/seed-content/emit.ts",
     "vapid:keys": "node scripts/vapid-keys.mjs",
-    "test:middleware": "tsx scripts/check-middleware.ts"
+    "test:middleware": "tsx scripts/check-middleware.ts",
+    "test:edge-auth": "node scripts/check-edge-authorization.mjs"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",

@@ -284,147 +284,178 @@ export async function getPublishedQuizQuestionsForTier(slug: string, tier: numbe
   if (error || !data) return [];
 
   // Through the same overlay as every other player-facing fetch. This mapped
-  // the rows itself and therefore served English to a Hausa player on the
-  // level path — the path a seeker actually walks — while the whole-category
-  // Hunt, three lines above, served the translation correctly. Nothing was
-  // wrong with the translations; this one function simply never asked for
-  // them. Thirty-six Hausa questions live in the browsable bank today, in
-  // thirteen categories, so this was visible on screen rather than latent.
-  return localiseQuestions(data);
-}
-
-/**
- * A pool for the mode runs, drawn from every category rather than one.
+  // the rows itself and th…9999 tokens truncated…er.
  *
- * Speed Round, Survival and Practice are not about a subject — they are about
- * how you play — so confining them to a category would make them a slower way
- * of doing what the level path already does.
- *
- * The band arrives from the run itself rather than being worked out here.
- * Since migration 0035 the run records the tiers it was opened for, and the
- * grader pays the mode multiplier only inside them; drawing the pool from the
- * same two numbers is what keeps the questions offered and the questions paid
- * for the same set. Deriving the band twice — once in TypeScript from `RANKS`,
- * once in SQL from `rank_tiers` — is how the two would drift apart.
- *
- * Capped well under PostgREST's 1,000-row ceiling on purpose: the category
- * grid spent a release counting to 1,000 and reporting it as the whole bank,
- * and an unbounded select here would be the same mistake in a new place. A
- * cap of 300 is far more than the longest realistic run.
+ * ── Swapping the model out ────────────────────────────────────────────────
+ * The owner intends to move to a paid translation API. Everything specific to
+ * Gemini is in `translateOne` and the two environment reads above it; the
+ * claim/write loop below knows nothing about the provider.
  */
-export async function getModeQuestionPool(
-  tierMin: number,
-  tierMax: number,
-  limit = 300,
-): Promise<QuizQuestion[]> {
-  const supabase = await createClient();
-  const low = clampTier(tierMin);
-  const high = clampTier(Math.max(tierMin, tierMax));
 
-  const { data, error } = await supabase
-    .from('questions')
-    .select('id, question_text, choices, difficulty, tier')
-    .eq('review_status', 'published')
-    // The arena bank. Timed, survival and practice ask nobody to choose a
-    // subject — questions arrive from all thirteen arena categories at once,
-    // and a player who wants a particular subject goes to the categories,
-    // which are untouched.
-    //
-    // The tier band below is what keeps this from being cruel. The bank is
-    // spread evenly across nine tiers, so selecting with no band at all would
-    // give every question an ~11% chance of being Expert; `startGameRun`
-    // computes the band from the player, so the surprise is in *which*
-    // question, never in whether they could possibly answer it.
-    .eq('pool', 'arena')
-    .gte('tier', low)
-    .lte('tier', high)
-    .limit(limit);
+import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizePrivilegedRequest } from "../_shared/privileged-request.ts";
 
-  if (error || !data) return [];
+const LOCALE_NAMES: Record<string, string> = {
+  ha: "Hausa",
+  fr: "French",
+  ar: "Arabic",
+  id: "Indonesian (Bahasa Indonesia)",
+  ms: "Malay (Bahasa Melayu)",
+};
 
-  return data.map((row: any) => {
-    const t = clampTier(row.tier ?? low);
-    return {
-      id: row.id as string,
-      text: row.question_text as string,
-      options: (row.choices ?? []) as string[],
-      difficulty: labelDifficulty(row.difficulty),
-      tier: t,
-      points: POINTS_BY_DIFFICULTY[row.difficulty as DbDifficulty] ?? 10,
-      timeLimit: timeLimitForTier(t),
-    };
-  });
+/** Read from the environment for the same reason `translate-questions` does:
+ * a retired model name should be a dashboard edit, not a deploy. */
+const MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.6-flash";
+
+interface Candidate {
+  o_hadith_id: string;
+  o_locale: string;
+  o_source_text: string;
+  o_reference: string;
 }
 
-export interface CategoryLevel {
-  tier: number;
-  publishedCount: number;
-  /** Distinct published questions in this tier the player has ever answered
-   * correctly — the level is "complete" once this reaches publishedCount. */
-  correctCount: number;
-  completed: boolean;
-  /** Whether the player may play this level yet. Tier 1 always is; tier N+1
-   * requires tier N complete. */
-  unlocked: boolean;
+function buildPrompt(sourceText: string, languageName: string): string {
+  return [
+    `Translate the following hadith text from English into ${languageName}.`,
+    ``,
+    `RULES, in order of importance:`,
+    ``,
+    `1. Translate. Do not summarise, expand, modernise or explain. If the`,
+    `   English is ambiguous, leave it ambiguous — do not resolve it.`,
+    `2. Do not add, remove, merge or reorder any clause. A narration is a`,
+    `   report of speech; every clause is part of the claim.`,
+    `3. Keep proper nouns as proper nouns: names of people, places, tribes and`,
+    `   books. Use the spelling conventional in ${languageName} where one`,
+    `   exists, and otherwise keep the English spelling unchanged.`,
+    `4. Keep honorifics exactly where they are, including "(ﷺ)" and any`,
+    `   Arabic benediction, character for character.`,
+    `5. Do not add commentary, a grading, a source, a reference number, or any`,
+    `   note of your own. Nothing that is not a translation of the text below.`,
+    `6. Return the translation only, with no preamble and no quotation marks`,
+    `   wrapping the whole thing.`,
+    ``,
+    `Return JSON of exactly this shape and nothing else:`,
+    `{"text": "<the translation>"}`,
+    ``,
+    `TEXT:`,
+    sourceText,
+  ].join("\n");
 }
 
-/**
- * The nine-level adventure path for one category.
- *
- * A level is "complete" once every published question in that tier has been
- * answered correctly at least once (checked against `attempts`, the
- * server-graded record — never against anything the client self-reports).
- * The next level is unlocked only once the one before it is complete.
- *
- * A tier with zero published questions can't be completed, but it also must
- * not permanently wall off every level after it while content is still being
- * reviewed — so an empty tier counts as "satisfied" for unlock purposes
- * (nothing to finish) while still showing honestly as not completed.
- */
-export async function getCategoryLevels(slug: string): Promise<CategoryLevel[]> {
-  const supabase = await createClient();
-  const category = await getCategoryBySlug(slug);
-  if (!category) return [];
+async function translateOne(sourceText: string, locale: string, apiKey: string): Promise<string | null> {
+  const languageName = LOCALE_NAMES[locale] ?? locale;
 
-  const { data: qs } = await supabase
-    .from('questions')
-    .select('id, tier')
-    .eq('category_id', category.id)
-    .eq('review_status', 'published');
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: buildPrompt(sourceText, languageName) }] }],
+        generationConfig: {
+          // Low, for the same reason the question worker is low: a narration
+          // that reads differently on a second run would mean the app had
+          // shown two different hadiths under one reference number.
+          temperature: 0.2,
+          responseMimeType: "application/json",
+        },
+      }),
+    },
+  );
 
-  const idsByTier = new Map<number, string[]>();
-  for (let t = TIER_MIN; t <= TIER_MAX; t += 1) idsByTier.set(t, []);
-  (qs ?? []).forEach((q: any) => {
-    idsByTier.get(clampTier(q.tier ?? TIER_MIN))!.push(q.id as string);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`model returned ${res.status}: ${body.slice(0, 600)}`);
+  }
+
+  const raw = (await res.json())?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof raw !== "string") return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const text = typeof parsed?.text === "string" ? parsed.text.trim() : null;
+    return text && text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+Deno.serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const denied = await authorizePrivilegedRequest(req, supabase, true);
+  if (denied) return denied;
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) {
+    return Response.json({ error: "GEMINI_API_KEY is not set" }, { status: 500 });
+  }
+
+  let locale = "ha";
+  let limit = 10;
+  // The narration on screen today is rarely near the front of the queue, so
+  // there has to be a way to name one. See 0065.
+  let reference: string | null = null;
+  try {
+    const body = await req.json();
+    if (typeof body?.locale === "string") locale = body.locale;
+    if (typeof body?.reference === "string") reference = body.reference;
+    if (Number.isFinite(body?.limit)) limit = Math.max(1, Math.min(50, Math.floor(body.limit)));
+  } catch {
+    // No body, or not JSON. The defaults above are a reasonable single batch.
+  }
+
+  const { data, error } = await supabase.rpc("hadith_translation_candidates", {
+    p_limit: limit,
+    p_locale: locale,
+    p_reference: reference,
   });
+  if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  const correctIds = new Set<string>();
-  const allIds = (qs ?? []).map((q: any) => q.id as string);
-  if (allIds.length > 0) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: attempts } = await supabase
-        .from('attempts')
-        .select('question_id')
-        .eq('user_id', user.id)
-        .eq('is_correct', true)
-        .in('question_id', allIds);
-      (attempts ?? []).forEach((a: any) => correctIds.add(a.question_id as string));
+  const candidates = (data ?? []) as Candidate[];
+  let written = 0;
+  let refused = 0;
+  const failures: string[] = [];
+
+  // One at a time. This is invoked by hand on a free-tier key that caps out at
+  // twenty calls a day; a concurrency pool would spend the whole quota inside
+  // one second and learn nothing more than this does.
+  for (const c of candidates) {
+    try {
+      const text = await translateOne(c.o_source_text, c.o_locale, apiKey);
+      if (!text) {
+        refused += 1;
+        continue;
+      }
+      const { data: ok, error: writeError } = await supabase.rpc("complete_hadith_translation", {
+        p_hadith_id: c.o_hadith_id,
+        p_locale: c.o_locale,
+        p_text: text,
+      });
+      if (writeError) {
+        failures.push(`${c.o_reference} ${c.o_locale}: ${writeError.message}`);
+      } else if (ok) {
+        written += 1;
+      } else {
+        // The row filled up, or the text failed the length floor. Either way
+        // the database made the call and there is nothing to retry.
+        refused += 1;
+      }
+    } catch (e) {
+      failures.push(`${c.o_reference} ${c.o_locale}: ${String((e as Error).message ?? e).slice(0, 300)}`);
+      // A quota wall means every remaining call in this batch will hit it too.
+      if (String((e as Error).message ?? "").includes("429")) break;
     }
   }
 
-  const levels: CategoryLevel[] = [];
-  let previousSatisfied = true; // level 1 is always open
-  for (let t = TIER_MIN; t <= TIER_MAX; t += 1) {
-    const ids = idsByTier.get(t)!;
-    const publishedCount = ids.length;
-    const correctCount = ids.filter((id) => correctIds.has(id)).length;
-    const completed = publishedCount > 0 && correctCount >= publishedCount;
-
-    levels.push({ tier: t, publishedCount, correctCount, completed, unlocked: previousSatisfied });
-    previousSatisfied = completed || publishedCount === 0;
-  }
-  return levels;
-}
+  return Response.json({
+    locale,
+    reference,
+    considered: candidates.length,
+    written,
+    refused,
+    failures: failures.slice(0, 10),
+    remaining_note: "Call again to continue; candidates are recomputed each time.",
+  });
+});

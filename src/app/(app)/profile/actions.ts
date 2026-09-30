@@ -42,6 +42,13 @@ export async function resetMyProgress(): Promise<ResetProgressResult> {
   revalidatePath("/quiz")
   revalidatePath("/leaderboard")
   revalidatePath("/achievements")
+  revalidatePath("/quiz/[id]", "page")
+  revalidatePath("/quiz/[id]/[tier]", "page")
+  revalidatePath("/challenges")
+  revalidatePath("/rewards")
+  revalidatePath("/store")
+  revalidatePath("/review")
+  revalidatePath("/play/[mode]", "page")
 
   return {
     ok: true,
