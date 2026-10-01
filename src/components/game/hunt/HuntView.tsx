@@ -64,16 +64,15 @@ interface HuntViewProps {
   forceTier?: number;
   /**
    * Play exactly the questions handed in, in one fixed order, instead of
-   * sampling a ladder out of them. The daily challenge is the only run whose
-   * questions were chosen by the server and are the same for every player, and
-   * its reward is claimable only once all five have been answered — so the run
-   * must serve all five rather than a rank-curved selection of them.
+   * sampling a ladder out of them. The daily challenge must serve all five
+   * chosen questions, and review must serve the entire due batch.
    */
   fixedLadder?: boolean;
+  /** Spaced review keeps the server's oldest-due-first order across tiers. */
+  preserveQuestionOrder?: boolean;
   /**
-   * Whether the summary offers "play again". True everywhere but the daily
-   * challenge, whose five questions are fixed for the day and whose reward is
-   * claimed once — see `RunSummary.onPlayAgain`.
+   * Whether the summary offers "play again". Daily challenges and review
+   * batches return to their own fresh queue instead.
    */
   allowReplay?: boolean;
   /** What the exit buttons say. Decided from `backHref` by `backLabelKey`, so
@@ -122,6 +121,7 @@ export function HuntView({
   onExit,
   forceTier,
   fixedLadder,
+  preserveQuestionOrder = false,
   allowReplay = true,
   exitLabelKey = "backToCategories",
   categorySlug,
@@ -150,7 +150,7 @@ export function HuntView({
   const ladder = useMemo(
     () =>
       startTier === null ? [] : fixedLadder
-        ? buildFixedLadder(questions)
+        ? buildFixedLadder(questions, preserveQuestionOrder)
         : forceTier !== undefined
         ? buildTierLadder(questions, forceTier, { rng: makeRng(seed) })
         : buildLadder(questions, {
@@ -162,10 +162,10 @@ export function HuntView({
             // end of it — the whole pool, rather than the classic ten.
             length: rules.endless ? questions.length : undefined,
           }),
-    [questions, seed, startTier, forceTier, fixedLadder, rules.endless],
+    [questions, seed, startTier, forceTier, fixedLadder, preserveQuestionOrder, rules.endless],
   );
 
-  const [state, setState] = useState<HuntState>(() => initialState(ladder, rules));
+  const [state, setState] = useState<HuntState>(() => initialState(ladder, rules, preserveQuestionOrder));
   const [remaining, setRemaining] = useState(() => ladder[0]?.timeLimit ?? 30);
   /** Seconds left on the whole-run clock. Only Speed Round has one. */
   const [runRemaining, setRunRemaining] = useState(() => rules.runSeconds ?? 0);
@@ -461,8 +461,11 @@ export function HuntView({
 
     // Measured from the real elapsed time, not the once-a-second display
     // counter, so the pace score reflects when the player actually committed.
+    // Untimed learning modes have no hidden speed reward.
     const elapsedMs = Date.now() - questionStartedAt.current;
-    const msLeft = questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current);
+    const msLeft = rules.perQuestionTimer || rules.runSeconds !== null
+      ? questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current)
+      : 0;
 
     try {
       // Neither the hint nor the double-points power-up is reported here any
@@ -690,7 +693,7 @@ export function HuntView({
   // A fresh seed rebuilds the ladder; reset the run to match it. Stage numbers
   // restart at 1 on a replay, so the timeout guard has to be cleared too.
   useEffect(() => {
-    setState(initialState(ladder, rules));
+    setState(initialState(ladder, rules, preserveQuestionOrder));
     setOutcome(null);
     setRemaining(ladder[0]?.timeLimit ?? 30);
     setRunRemaining(rules.runSeconds ?? 0);
@@ -699,7 +702,7 @@ export function HuntView({
     setReview([]);
     setHolding(false);
     pendingAdvance.current = null;
-  }, [ladder]);
+  }, [ladder, rules.lives, rules.runSeconds, preserveQuestionOrder]);
 
   if (startTier === null) return <div role="status" className="p-8 text-center text-on-surface-variant">{t("loadingProfileWait")}</div>;
 

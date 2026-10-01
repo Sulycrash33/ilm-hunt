@@ -76,6 +76,8 @@ export type HuntStatus = 'idle' | 'playing' | 'won' | 'lost';
 export interface HuntState {
   /** The questions chosen for this run, in order. */
   ladder: HuntQuestion[];
+  /** Review queues retain their due-date order after both hits and misses. */
+  preserveOrder?: boolean;
   /** Index into `ladder` of the question on screen. */
   stage: number;
   status: HuntStatus;
@@ -233,10 +235,10 @@ export function buildTierLadder(
  * Every player meets the same five questions in the same order, which is what
  * makes a shared challenge worth talking about.
  */
-export function buildFixedLadder(pool: readonly QuizQuestion[]): HuntQuestion[] {
-  return pool
-    .map((q, i) => ({ q, i }))
-    .sort((a, b) => clampTier(a.q.tier) - clampTier(b.q.tier) || a.i - b.i)
+export function buildFixedLadder(pool: readonly QuizQuestion[], preserveOrder = false): HuntQuestion[] {
+  const ordered = pool.map((q, i) => ({ q, i }));
+  if (!preserveOrder) ordered.sort((a, b) => clampTier(a.q.tier) - clampTier(b.q.tier) || a.i - b.i);
+  return ordered
     .map(({ q }, i) => ({
       ...q,
       stage: i + 1,
@@ -374,9 +376,10 @@ export function isLearningMode(rules: ModeRules): boolean {
  */
 export const UNLIMITED_LIVES = 9_999;
 
-export function initialState(ladder: HuntQuestion[], rules: ModeRules = CLASSIC_RULES): HuntState {
+export function initialState(ladder: HuntQuestion[], rules: ModeRules = CLASSIC_RULES, preserveOrder = false): HuntState {
   return {
     ladder,
+    preserveOrder,
     stage: 0,
     status: ladder.length === 0 ? 'idle' : 'playing',
     lives: rules.lives ?? UNLIMITED_LIVES,
@@ -514,6 +517,7 @@ function advance(state: HuntState): HuntState {
  * been seen yet, so the run never repeats or skips content.
  */
 function retune(state: HuntState): Pick<HuntState, 'ladder'> {
+  if (state.preserveOrder) return { ladder: state.ladder };
   const remaining = state.ladder.slice(state.stage);
   if (remaining.length < 2) return { ladder: state.ladder };
 
