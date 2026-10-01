@@ -301,6 +301,7 @@ export function HuntView({
         {
           stage: expired.stage,
           text: expired.text,
+          categoryName: expired.categoryName,
           options: expired.options,
           chosenIndex: null,
           correctIndex: null,
@@ -536,6 +537,7 @@ export function HuntView({
         {
           stage: question.stage,
           text: question.text,
+          categoryName: question.categoryName,
           options: question.options,
           chosenIndex: index,
           correctIndex: result.correctIndex,
@@ -831,7 +833,7 @@ export function HuntView({
         frozen={rules.runSeconds !== null ? false : locked}
       />
 
-      <QuestionCard text={question.text} questionId={question.id} />
+      <QuestionCard text={question.text} questionId={question.id} categoryName={question.categoryName} />
 
       {doublePoints && (
         <p className="text-center text-sm font-semibold text-tertiary">

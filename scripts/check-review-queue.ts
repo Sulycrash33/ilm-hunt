@@ -25,6 +25,7 @@ const rows = Array.from({ length: 18 }, (_, index) => ({
     choices: ["One", "Two", "Three", "Four"],
     difficulty: "easy", tier: 1 + index % 9,
     review_status: index === 17 ? "draft" : "published",
+    categories: index === 2 ? null : { name: index % 2 ? "Hadith Sciences" : "Holy Quran" },
   },
 }));
 rows.push({ ...rows[0], question_id: "unpublished", questions: { ...rows[0].questions, id: "unpublished", review_status: "draft" } });
@@ -79,6 +80,9 @@ async function main() {
   assert.equal(session.questions.length, 15);
   assert.deepEqual(plain(session.questions.map((q: any) => q.id)), rows.slice(0, 15).map(row => row.question_id));
   assert.equal(session.questions[0].text, "English question 0");
+  assert.equal(session.questions[0].categoryName, "Holy Quran");
+  assert.equal(session.questions[1].categoryName, "Hadith Sciences");
+  assert.equal(session.questions[2].categoryName, undefined, "Missing topic metadata must not drop a question");
   assert.ok(requests.some(url => url.searchParams.get("order") === "due_on.asc,question_id.asc"));
   assert.ok(!requests.some(url => url.pathname.endsWith("question_translations")), "English is the default without a translation request");
   for (const limit of [999, NaN]) assert.equal((await review.getDueReviewQuestions(limit)).length, 15);
@@ -86,6 +90,7 @@ async function main() {
   locale = "ha";
   const translated = await review.getDueReviewQuestions(3);
   assert.equal(translated[0].text, "Translated first question");
+  assert.equal(translated[0].categoryName, "Holy Quran", "Translation preserves the actual subject");
   assert.deepEqual(plain(translated[0].options), ["A", "B", "C", "D"]);
   assert.equal(translated[1].text, "English question 1", "Malformed translations fall back per question");
   assert.equal(translated[2].text, "English question 2", "Missing translations fall back per question");

@@ -1,7 +1,10 @@
 # Review experience — 1 October 2026
 
 Based on merged PR #102 (`87b311c72326c68006d049488fa4a5baa4c86f92`).
-This change stays unmerged until the owner says to merge.
+Merged on the owner's instruction as PR #103,
+`6135c74f80830f8c9a46fe53f5c6aff02404a8c1`. Vercel reports a successful
+production deployment for the Ilm Hunt project. The signed-in English review
+page on `www.ilmhunt.app` visibly includes the refresh control after deployment.
 
 ## Player experience
 

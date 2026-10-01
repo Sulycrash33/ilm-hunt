@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { reviewQuestionQuality, type QualityQuestion, type QualityReport } from '@/lib/question-quality';
 
 /**
  * The question console.
@@ -57,6 +58,44 @@ async function requireAdmin() {
     throw new Error('Not authorized. This page is restricted to administrators.');
   }
   return { supabase };
+}
+
+/** Read-only, on-demand scan. Keyset paging avoids the API's 1,000-row ceiling. */
+export async function getQuestionQualityReport(): Promise<
+  { ok: true; report: QualityReport } | { ok: false; error: string }
+> {
+  try {
+    const { supabase } = await requireAdmin();
+    const questions: QualityQuestion[] = [];
+    let cursor: string | null = null;
+    let complete = false;
+    const batchSize = 1_000;
+    const maximum = 50_000;
+    while (questions.length < maximum) {
+      let query = supabase.from('questions')
+        .select('id, question_text, choices, tier, category_id, categories(name)')
+        .eq('review_status', 'published').order('id').limit(batchSize);
+      if (cursor) query = query.gt('id', cursor);
+      const { data, error } = await query;
+      if (error) throw new Error('Could not scan the question bank. Please try again.');
+      const rows = data ?? [];
+      for (const row of rows as any[]) questions.push({
+        id: row.id, text: row.question_text ?? '', choices: row.choices ?? [],
+        category: row.categories?.name ?? null, categoryId: row.category_id ?? null,
+        tier: row.tier ?? null,
+      });
+      if (rows.length < batchSize) { complete = true; break; }
+      const nextCursor = rows[rows.length - 1].id as string;
+      if (nextCursor === cursor) throw new Error('Question scan could not advance. Please try again.');
+      cursor = nextCursor;
+    }
+    return { ok: true, report: {
+      scanned: questions.length, complete, checkedAt: new Date().toISOString(),
+      issues: reviewQuestionQuality(questions),
+    } };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Could not scan questions.' };
+  }
 }
 
 export async function listQuestions(f: QuestionFilters = {}): Promise<ListQuestionsResult> {
