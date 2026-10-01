@@ -286,5 +286,25 @@ check('speed round is not a learning mode', isLearningMode({
   lives: null, runSeconds: 120, perQuestionTimer: false, endless: true,
 }) === false);
 
+// Review serves every due question, in its supplied order, even after streaks
+// and repeated misses that normally adapt the Hunt's difficulty.
+const reviewPool = Array.from({ length: 15 }, (_, i) => ({
+  id: `due-${i}`, text: 'Review question', options: ['A', 'B'],
+  difficulty: 'Beginner' as const, tier: [9, 1, 5, 2, 8][i % 5], points: 10, timeLimit: 25,
+}));
+const reviewLadder = buildFixedLadder(reviewPool, true);
+check('review preserves the full 15-question due order', reviewLadder.map(q => q.id).join(',') === reviewPool.map(q => q.id).join(','));
+for (const correct of [true, false]) {
+  let reviewState = initialState(reviewLadder, { lives: null, runSeconds: null, perQuestionTimer: false, endless: false }, true);
+  let ordered = true;
+  for (const expected of reviewPool) {
+    ordered &&= currentQuestion(reviewState)?.id === expected.id;
+    reviewState = applyAnswer(reviewState, { correct, xpEarned: correct ? 10 : 0, msLeft: 0 });
+  }
+  check(`review keeps due order after ${correct ? 'correct streaks' : 'repeated misses'}`, ordered);
+  check(`review completes all questions after ${correct ? 'correct answers' : '15 mistakes'}`, reviewState.status === 'won' && summarize(reviewState).answered === 15);
+}
+check('ordered review does not mutate its question pool', reviewPool[0].id === 'due-0' && reviewPool[0].tier === 9);
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -1,4 +1,12 @@
 export interface MoreExperienceCopy {
+  reviewBackToQueue: string
+  reviewRefresh: string
+  reviewLoading: string
+  reviewLoadFailed: string
+  reviewQueueChanged: string
+  reviewPace: string
+  reviewFreshStart: string
+  reviewQueueRemaining: string
   soloTimeRemaining: string
   copyRoomInvite: string
   roomInviteCopied: string
@@ -26,6 +34,14 @@ export interface MoreExperienceCopy {
 
 export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", MoreExperienceCopy> = {
   "en": {
+    "reviewBackToQueue": "Back to review",
+    "reviewRefresh": "Refresh review queue",
+    "reviewLoading": "Loading your review queue…",
+    "reviewLoadFailed": "Your review queue could not load. Please try again.",
+    "reviewQueueChanged": "Your review queue has changed. Refresh to see what is ready.",
+    "reviewPace": "Learn at your pace. No timer, no lost lives.",
+    "reviewFreshStart": "Explore a subject to keep learning. Your answered questions will return here when they are due.",
+    "reviewQueueRemaining": "{count} more questions are due after this batch.",
     "soloTimeRemaining": "{count} seconds remaining",
     "copyRoomInvite": "Copy invitation link",
     "roomInviteCopied": "Invitation link copied",
@@ -50,6 +66,14 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Your learning journey"
   },
   "ha": {
+    "reviewBackToQueue": "Komawa sake dubawa",
+    "reviewRefresh": "Sabunta jerin tambayoyin dubawa",
+    "reviewLoading": "Ana loda tambayoyin dubawarka…",
+    "reviewLoadFailed": "An kasa loda tambayoyin dubawarka. Sake gwadawa.",
+    "reviewQueueChanged": "Jerin tambayoyin dubawarka ya canza. Sabunta don ganin abin da ya shirya.",
+    "reviewPace": "Koyi a hankali yadda kake so. Babu ƙidayar lokaci ko rasa damar amsawa.",
+    "reviewFreshStart": "Zaɓi fanni don ci gaba da koyo. Tambayoyin da ka amsa za su dawo nan lokacin dubawarsu.",
+    "reviewQueueRemaining": "Akwai ƙarin tambayoyi {count} da za a duba bayan wannan rukuni.",
     "soloTimeRemaining": "Daƙiƙa {count} sun rage",
     "copyRoomInvite": "Kwafi hanyar gayyata",
     "roomInviteCopied": "An kwafi hanyar gayyata",
@@ -74,6 +98,14 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Tafiyarka ta ilimi"
   },
   "fr": {
+    "reviewBackToQueue": "Retour aux révisions",
+    "reviewRefresh": "Actualiser les révisions",
+    "reviewLoading": "Chargement de vos révisions…",
+    "reviewLoadFailed": "Impossible de charger vos révisions. Réessayez.",
+    "reviewQueueChanged": "Vos révisions ont changé. Actualisez pour voir les questions disponibles.",
+    "reviewPace": "Apprenez à votre rythme, sans chronomètre ni perte de vies.",
+    "reviewFreshStart": "Explorez un sujet pour continuer à apprendre. Les questions auxquelles vous avez répondu reviendront ici au moment de les réviser.",
+    "reviewQueueRemaining": "Encore {count} questions à réviser après cette série.",
     "soloTimeRemaining": "{count} secondes restantes",
     "copyRoomInvite": "Copier le lien d’invitation",
     "roomInviteCopied": "Lien d’invitation copié",
@@ -98,6 +130,14 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Votre parcours d’apprentissage"
   },
   "ar": {
+    "reviewBackToQueue": "العودة إلى المراجعة",
+    "reviewRefresh": "تحديث أسئلة المراجعة",
+    "reviewLoading": "جارٍ تحميل أسئلة المراجعة…",
+    "reviewLoadFailed": "تعذر تحميل أسئلة المراجعة. حاول مرة أخرى.",
+    "reviewQueueChanged": "تغيرت أسئلة المراجعة. حدّث الصفحة لترى الأسئلة المتاحة.",
+    "reviewPace": "تعلّم على مهلك، دون مؤقت أو خسارة محاولات.",
+    "reviewFreshStart": "استكشف موضوعًا لتواصل التعلم. ستعود الأسئلة التي أجبت عنها هنا عند موعد مراجعتها.",
+    "reviewQueueRemaining": "هناك {count} سؤالًا آخر للمراجعة بعد هذه المجموعة.",
     "soloTimeRemaining": "تبقى {count} ثانية",
     "copyRoomInvite": "انسخ رابط الدعوة",
     "roomInviteCopied": "تم نسخ رابط الدعوة",
@@ -122,6 +162,14 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "رحلتك التعليمية"
   },
   "ms": {
+    "reviewBackToQueue": "Kembali ke ulang kaji",
+    "reviewRefresh": "Muat semula soalan ulang kaji",
+    "reviewLoading": "Memuatkan soalan ulang kaji…",
+    "reviewLoadFailed": "Soalan ulang kaji tidak dapat dimuatkan. Cuba lagi.",
+    "reviewQueueChanged": "Soalan ulang kaji anda telah berubah. Muat semula untuk melihat soalan yang tersedia.",
+    "reviewPace": "Belajar mengikut rentak anda, tanpa pemasa atau kehilangan nyawa.",
+    "reviewFreshStart": "Terokai topik untuk terus belajar. Soalan yang telah dijawab akan kembali di sini apabila tiba masa untuk diulang kaji.",
+    "reviewQueueRemaining": "{count} lagi soalan perlu diulang kaji selepas kumpulan ini.",
     "soloTimeRemaining": "Baki {count} saat",
     "copyRoomInvite": "Salin pautan jemputan",
     "roomInviteCopied": "Pautan jemputan disalin",
@@ -146,6 +194,14 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Perjalanan ilmu anda"
   },
   "id": {
+    "reviewBackToQueue": "Kembali ke ulasan",
+    "reviewRefresh": "Muat ulang soal ulasan",
+    "reviewLoading": "Memuat soal ulasan…",
+    "reviewLoadFailed": "Soal ulasan tidak dapat dimuat. Coba lagi.",
+    "reviewQueueChanged": "Soal ulasan Anda telah berubah. Muat ulang untuk melihat soal yang tersedia.",
+    "reviewPace": "Belajar sesuai ritme Anda, tanpa timer atau kehilangan nyawa.",
+    "reviewFreshStart": "Jelajahi topik untuk terus belajar. Soal yang telah dijawab akan kembali di sini saat waktunya diulas.",
+    "reviewQueueRemaining": "Masih ada {count} soal yang perlu diulas setelah kelompok ini.",
     "soloTimeRemaining": "Tersisa {count} detik",
     "copyRoomInvite": "Salin tautan undangan",
     "roomInviteCopied": "Tautan undangan disalin",

@@ -29,6 +29,7 @@ const LIFELINE_META: Record<string, { icon: LucideIcon; nameKey: keyof Translati
 
 export function LifelineDock({ prices, coins, used, locked, pending, onUse }: LifelineDockProps) {
   const { t } = useLanguage();
+  if (prices.length === 0) return null;
 
   return (
     <section aria-label={t("lifelines")} className="space-y-3">

@@ -1,8 +1,10 @@
 # Historical break checkpoint — 1 October 2026
 
-This records the earlier break. The owner has since resumed work on PR #102.
-See `SOLO_GAMEPLAY_RELIABILITY.md` for the final changes and validation.
-The PR stays unmerged until the owner says to merge.
+This records the earlier break. PR #102 has since been squash-merged on the
+owner's instruction as `87b311c72326c68006d049488fa4a5baa4c86f92`, with a
+successful Ilm Hunt production deployment. See `SOLO_GAMEPLAY_RELIABILITY.md`
+for its changes and validation. The next review-session improvements are
+described in `REVIEW_EXPERIENCE.md` and await the owner's merge instruction.
 
 ## Live release
 

@@ -1,8 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { labelDifficulty, POINTS_BY_DIFFICULTY } from "@/lib/quiz-service";
-import { timeLimitForTier, clampTier } from "@/lib/hunt-engine";
+import { localiseQuestions } from "@/lib/quiz-service";
 import type { QuizQuestion } from "@/lib/types";
 
 /**
@@ -34,35 +33,42 @@ export async function getReviewStatus(): Promise<ReviewStatus> {
   const supabase = await createClient();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+  if (authError) throw new Error("Could not authenticate review request");
   if (!user) return { due: 0, scheduled: 0, nextDueOn: null };
 
+  // The existing SM-2 trigger stores due dates against the database's UTC day.
   const today = new Date().toISOString().slice(0, 10);
 
-  const [{ count: due }, { count: scheduled }, { data: next }] = await Promise.all([
+  const [dueResult, scheduledResult, nextResult] = await Promise.all([
     supabase
       .from("user_question_schedule")
-      .select("question_id", { count: "exact", head: true })
+      .select("question_id, questions!inner(id)", { count: "exact", head: true })
       .eq("user_id", user.id)
+      .eq("questions.review_status", "published")
       .lte("due_on", today),
     supabase
       .from("user_question_schedule")
-      .select("question_id", { count: "exact", head: true })
+      .select("question_id, questions!inner(id)", { count: "exact", head: true })
       .eq("user_id", user.id)
+      .eq("questions.review_status", "published")
       .gt("due_on", today),
     supabase
       .from("user_question_schedule")
-      .select("due_on")
+      .select("due_on, questions!inner(id)")
       .eq("user_id", user.id)
+      .eq("questions.review_status", "published")
       .gt("due_on", today)
       .order("due_on")
       .limit(1),
   ]);
 
+  if (dueResult.error || scheduledResult.error || nextResult.error) throw new Error("Could not load review status");
   return {
-    due: due ?? 0,
-    scheduled: scheduled ?? 0,
-    nextDueOn: next?.[0]?.due_on ?? null,
+    due: dueResult.count ?? 0,
+    scheduled: scheduledResult.count ?? 0,
+    nextDueOn: nextResult.data?.[0]?.due_on ?? null,
   };
 }
 
@@ -79,10 +85,13 @@ export async function getDueReviewQuestions(
   const supabase = await createClient();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+  if (authError) throw new Error("Could not authenticate review request");
   if (!user) return [];
 
   const today = new Date().toISOString().slice(0, 10);
+  const sessionLimit = Number.isFinite(limit) ? Math.max(1, Math.min(REVIEW_SESSION_SIZE, Math.floor(limit))) : REVIEW_SESSION_SIZE;
 
   const { data, error } = await supabase
     .from("user_question_schedule")
@@ -91,21 +100,19 @@ export async function getDueReviewQuestions(
     .lte("due_on", today)
     .eq("questions.review_status", "published")
     .order("due_on")
-    .limit(limit);
+    .order("question_id")
+    .limit(sessionLimit);
 
-  if (error || !data) return [];
+  if (error) throw new Error("Could not load review questions");
+  return localiseQuestions((data ?? []).map((row: any) => row.questions));
+}
 
-  return data.map((row: any) => {
-    const q = row.questions;
-    const tier = clampTier(q.tier ?? 1);
-    return {
-      id: q.id as string,
-      text: q.question_text as string,
-      options: (q.choices ?? []) as string[],
-      difficulty: labelDifficulty(q.difficulty),
-      tier,
-      points: POINTS_BY_DIFFICULTY[q.difficulty as keyof typeof POINTS_BY_DIFFICULTY] ?? 10,
-      timeLimit: timeLimitForTier(tier),
-    };
-  });
+export interface ReviewSession {
+  questions: QuizQuestion[];
+  status: ReviewStatus;
+}
+
+export async function getReviewSession(): Promise<ReviewSession> {
+  const [questions, status] = await Promise.all([getDueReviewQuestions(), getReviewStatus()]);
+  return { questions, status };
 }

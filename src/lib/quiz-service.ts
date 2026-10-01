@@ -101,7 +101,7 @@ export async function getPublishedQuizQuestions(slug: string): Promise<QuizQuest
  * of the option-count check below is exactly the kind of drift migration 0049
  * was written about.
  */
-async function localiseQuestions(rows: any[]): Promise<QuizQuestion[]> {
+export async function localiseQuestions(rows: any[]): Promise<QuizQuestion[]> {
   if (rows.length === 0) return [];
   const supabase = await createClient();
 
