@@ -12,6 +12,20 @@ async function main() {
   assert.deepEqual(questionQualityReasons({ text: "What has this tier established?", choices: ["A", "B"] }), ["context"]);
   assert.deepEqual(questionQualityReasons({ text: "What does this category's method require?", choices: ["A", "B"] }), ["context"]);
   assert.deepEqual(questionQualityReasons({ text: "What does the capstone tier certify?", choices: ["A", "B"] }), ["context"]);
+  for (const text of [
+    "How does tier 3 compare with tier 6?",
+    "What did tiers 1 through 4 establish?",
+    "Which earlier tier modelled that distinction?",
+    "What do the texts covered so far suggest?",
+    "What was established in the previous lesson?",
+    "How does lesson two prepare for the next category?",
+  ]) assert.deepEqual(questionQualityReasons({ text, choices: ["A", "B"] }), ["context"], text);
+  for (const text of [
+    "Which report names three phrases of remembrance?",
+    "How many tiers does this diagram show?",
+    "What are the three lessons drawn from Quran 2:201?",
+    "What does this statement say about gratitude?",
+  ]) assert.deepEqual(questionQualityReasons({ text, choices: ["A", "B"] }), [], text);
   assert.deepEqual(questionQualityReasons({ text: " ", choices: [" "] }), ["blankText", "fewChoices", "blankChoice"]);
   assert.deepEqual(questionQualityReasons({ text: "Choose an option.", choices: ["Ａllah", "allah"] }), ["duplicateChoice"]);
   const sample = [

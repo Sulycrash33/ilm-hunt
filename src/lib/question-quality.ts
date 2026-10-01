@@ -1,6 +1,6 @@
 /** Writing checks for human review. They do not decide factual accuracy. */
 export const QUALITY_LABELS = {
-  context: "Depends on an unnamed tier or category",
+  context: "Depends on another lesson, tier or category",
   blankText: "Question text is empty",
   fewChoices: "Fewer than two choices",
   blankChoice: "An answer choice is empty",
@@ -34,7 +34,11 @@ function normalise(text: string): string {
 export function questionQualityReasons(question: Pick<QualityQuestion, "text" | "choices">): QualityRule[] {
   const reasons: QualityRule[] = [];
   if (!question.text.trim()) reasons.push("blankText");
-  if (/\b(?:this\s+(?:category|tier)|capstone\s+tier|previous\s+tiers?)\b/i.test(question.text)) reasons.push("context");
+  // Quizzes shuffle questions, so references to a course sequence need review.
+  // Keep this advisory: a quoted phrase may be intentional, and the checker
+  // does not reject a question or infer whether its religious content is sound.
+  const courseReference = /\b(?:(?:this|previous|prior|earlier|next|capstone)\s+(?:category|tiers?|lessons?)|(?:tiers?|lessons?)\s+(?:[1-9]\b|one\b|two\b|three\b|four\b|five\b|six\b|seven\b|eight\b|nine\b)|(?:texts?|reports?|material)\s+covered\s+so\s+far)\b/i;
+  if (courseReference.test(question.text)) reasons.push("context");
   if (question.choices.length < 2) reasons.push("fewChoices");
   if (question.choices.some(choice => !choice.trim())) reasons.push("blankChoice");
   const choices = question.choices.map(normalise).filter(Boolean);
