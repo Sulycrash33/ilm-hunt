@@ -52,6 +52,8 @@ export interface QuizQuestion {
   id: string;
   text: string;
   options: string[];
+  /** The question's actual database subject, including mixed-topic modes. */
+  categoryName?: string;
   /**
    * The coarse three-way band, kept for display and for the XP the server
    * grants. The ladder no longer runs on this — see `tier`.

@@ -82,7 +82,7 @@ export async function getPublishedQuizQuestions(slug: string): Promise<QuizQuest
     // NOTE: correct_choice_index / explanation / citation are intentionally NOT
     // selected here — they must never reach the browser before an answer is
     // submitted. Grading happens server-side in submitAnswer().
-    .select('id, question_text, choices, difficulty, tier')
+    .select('id, question_text, choices, difficulty, tier, categories(name)')
     .eq('category_id', category.id)
     .eq('review_status', 'published')
     .order('created_at', { ascending: true });
@@ -168,6 +168,7 @@ export async function localiseQuestions(rows: any[]): Promise<QuizQuestion[]> {
 
     return {
       id: row.id as string,
+      categoryName: typeof row.categories?.name === 'string' ? row.categories.name : undefined,
       text: usable?.text ?? (row.question_text as string),
       options: usable?.options ?? englishOptions,
       difficulty: labelDifficulty(row.difficulty),
@@ -205,7 +206,7 @@ export async function getQuestionsByIds(ids: readonly string[]): Promise<QuizQue
     // As everywhere else: correct_choice_index and explanation are never
     // selected before an answer is graded. Migration 0049 revoked them at the
     // column level too, so this is now enforced rather than merely intended.
-    .select('id, question_text, choices, difficulty, tier')
+    .select('id, question_text, choices, difficulty, tier, categories(name)')
     .in('id', ids as string[])
     .eq('review_status', 'published');
 
@@ -275,7 +276,7 @@ export async function getPublishedQuizQuestionsForTier(slug: string, tier: numbe
 
   const { data, error } = await supabase
     .from('questions')
-    .select('id, question_text, choices, difficulty, tier')
+    .select('id, question_text, choices, difficulty, tier, categories(name)')
     .eq('category_id', category.id)
     .eq('tier', wantedTier)
     .eq('review_status', 'published')
@@ -323,7 +324,7 @@ export async function getModeQuestionPool(
 
   const { data, error } = await supabase
     .from('questions')
-    .select('id, question_text, choices, difficulty, tier')
+    .select('id, question_text, choices, difficulty, tier, categories(name)')
     .eq('review_status', 'published')
     // The arena bank. Timed, survival and practice ask nobody to choose a
     // subject — questions arrive from all thirteen arena categories at once,

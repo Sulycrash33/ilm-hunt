@@ -15,11 +15,13 @@ import { useEffect, useState } from "react";
 import { playCue } from "@/lib/sound";
 import { playHaptic } from "@/lib/haptics";
 import { Celebration } from "@/components/game/Celebration";
+import { QuestionTopic } from "./QuestionTopic";
 
 /** One question as the summary retells it. Mirrors the shape HuntView keeps. */
 export interface RunReviewEntry {
   stage: number;
   text: string;
+  categoryName?: string;
   options: string[];
   chosenIndex: number | null;
   correctIndex: number | null;
@@ -378,6 +380,7 @@ function ReviewCard({ entry }: { entry: RunReviewEntry }) {
             : "border-error/30 bg-error/5",
       )}
     >
+      <QuestionTopic name={entry.categoryName} />
       <div className="flex items-start gap-2">
         <span className="mt-0.5 shrink-0">
           {entry.timedOut ? (

@@ -3,11 +3,13 @@
 import { motion } from "framer-motion";
 import { IslamicPattern } from "@/components/islamic-pattern";
 import { useGameReducedMotion } from "@/contexts/GameExperienceContext";
+import { QuestionTopic } from "./QuestionTopic";
 
 interface QuestionCardProps {
   text: string;
   /** A raised question surface with the app's existing khatim motif. */
   questionId: string;
+  categoryName?: string;
 }
 
 /**
@@ -18,7 +20,7 @@ interface QuestionCardProps {
  * The star is decorative and deliberately low-contrast; it sits behind the
  * text at low opacity so it never competes with reading.
  */
-export function QuestionCard({ text, questionId }: QuestionCardProps) {
+export function QuestionCard({ text, questionId, categoryName }: QuestionCardProps) {
   const reduce = useGameReducedMotion();
   return (
     <motion.div
@@ -30,6 +32,7 @@ export function QuestionCard({ text, questionId }: QuestionCardProps) {
     >
       <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true"><IslamicPattern variant="flat" /></div>
 
+      {categoryName && <div className="mb-3"><QuestionTopic name={categoryName} /></div>}
       <h2 className="relative font-headline text-2xl leading-snug text-on-surface sm:text-3xl">
         {text}
       </h2>

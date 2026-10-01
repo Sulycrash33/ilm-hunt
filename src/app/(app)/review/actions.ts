@@ -95,7 +95,7 @@ export async function getDueReviewQuestions(
 
   const { data, error } = await supabase
     .from("user_question_schedule")
-    .select("question_id, due_on, questions!inner(id, question_text, choices, difficulty, tier, review_status)")
+    .select("question_id, due_on, questions!inner(id, question_text, choices, difficulty, tier, review_status, categories(name))")
     .eq("user_id", user.id)
     .lte("due_on", today)
     .eq("questions.review_status", "published")

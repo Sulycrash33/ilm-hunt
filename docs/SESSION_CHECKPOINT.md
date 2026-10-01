@@ -1,10 +1,18 @@
 # Historical break checkpoint — 1 October 2026
 
-This records the earlier break. PR #102 has since been squash-merged on the
+Current checkpoint: PR #103 is merged as
+`6135c74f80830f8c9a46fe53f5c6aff02404a8c1`. The correct Ilm Hunt Vercel
+production deployment succeeded, and the signed-in English review page shows
+the refresh control on `www.ilmhunt.app`. The next change is on
+`claude/ilm-hunt-content-quality`; see `QUESTION_QUALITY_REVIEW.md`. Prepare it
+as a draft PR; the owner decides when to merge. English remains the default.
+No production question edits or new backend deployment were made for this work.
+
+This also records the earlier break. PR #102 has since been squash-merged on the
 owner's instruction as `87b311c72326c68006d049488fa4a5baa4c86f92`, with a
 successful Ilm Hunt production deployment. See `SOLO_GAMEPLAY_RELIABILITY.md`
 for its changes and validation. The next review-session improvements are
-described in `REVIEW_EXPERIENCE.md` and await the owner's merge instruction.
+described in `REVIEW_EXPERIENCE.md` and are now merged in PR #103.
 
 ## Live release
 

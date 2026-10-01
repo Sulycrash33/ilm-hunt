@@ -3,7 +3,8 @@
 import { useGameReducedMotion as useReducedMotion } from "@/contexts/GameExperienceContext";
 
 import { motion } from "framer-motion";
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
+import { QuestionQualityPanel } from "./QuestionQualityPanel"
 import { BadgeCheck, ChevronLeft, ChevronRight, Loader2, Pencil, X } from "lucide-react"
 import { PremiumCard } from "@/components/ui/premium-card"
 import { useToast } from "@/hooks/use-toast"
@@ -61,6 +62,10 @@ export function QuestionsPageClient({ initialQuestions, initialTotal, summary }:
   const [expanded, setExpanded] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [reload, setReload] = useState(0)
+  const qualityTarget = useRef<string | null>(null)
+  const qualityEditorFocus = useRef(false)
+  const editTextRef = useRef<HTMLTextAreaElement | null>(null)
 
   /** The question being corrected, held as a draft so an abandoned edit
    *  changes nothing and a saved one replaces the row in place. */
@@ -104,15 +109,34 @@ export function QuestionsPageClient({ initialQuestions, initialTotal, summary }:
       if (cancelled) return
       setLoading(false)
       if (!r.ok) {
+        qualityTarget.current = null
         toast({ variant: "destructive", title: "Could not load questions", description: r.error })
         return
       }
       setQuestions(r.questions)
       setTotal(r.total)
+      if (qualityTarget.current) {
+        const chosen = r.questions.find(question => question.id === qualityTarget.current)
+        qualityTarget.current = null
+        if (chosen) { qualityEditorFocus.current = true; beginEdit(chosen) }
+        else toast({ title: "Question no longer matches", description: "Scan again to refresh its current wording." })
+      }
+    }).catch(() => {
+      if (cancelled) return
+      setLoading(false)
+      qualityTarget.current = null
+      toast({ variant: "destructive", title: "Could not load questions", description: "Please try again." })
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, page])
+  }, [filterKey, page, reload])
+
+  useEffect(() => {
+    if (editing && qualityEditorFocus.current) {
+      qualityEditorFocus.current = false
+      editTextRef.current?.focus()
+    }
+  }, [editing])
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const scholarDone = summary
@@ -243,9 +267,17 @@ export function QuestionsPageClient({ initialQuestions, initialTotal, summary }:
         </PremiumCard>
       )}
 
+      <QuestionQualityPanel disabled={editing !== null || busy !== null || loading} onOpen={issue => {
+        qualityTarget.current = issue.id
+        setSearch(issue.text); setDebounced(issue.text)
+        setCategoryId(issue.categoryId ?? ""); setTier(""); setStatus(""); setSource("")
+        setPage(0); setReload(value => value + 1)
+      }} />
+
       <div className="mb-6 grid gap-3 md:grid-cols-5">
         <input
           type="text"
+          aria-label="Search questions"
           placeholder="Search text, explanation or citation..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -419,6 +451,7 @@ export function QuestionsPageClient({ initialQuestions, initialTotal, summary }:
                     <label className="block text-sm">
                       <span className="mb-1 block text-on-surface-variant">Question</span>
                       <textarea
+                        ref={editTextRef}
                         value={draft.text}
                         onChange={(e) => setDraft({ ...draft, text: e.target.value })}
                         rows={2}
