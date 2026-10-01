@@ -280,6 +280,14 @@ export function HuntView({
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
   }, []);
 
+  // A run can finish while a lifeline is still waiting on the server.
+  // Retire those requests even when the final question stays in the ladder.
+  useEffect(() => {
+    if (!finished) return;
+    operationEpoch.current++;
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+  }, [finished]);
+
   const handleTimeout = useCallback(
     (expired: HuntQuestion) => {
       if (timedOutStage.current === expired.stage) return;
@@ -621,9 +629,13 @@ export function HuntView({
         case "fifty-fifty":
           try {
             const choices = await fiftyFifty(question.id);
-            if (operationEpoch.current === epoch) setEliminated(choices);
+            if (operationEpoch.current === epoch &&
+                (rules.runSeconds === null || secondsUntil(runDeadline.current) > 0) &&
+                (!rules.perQuestionTimer || questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) > 0)) {
+              setEliminated(choices);
+            }
           } catch {
-            toast({ title: t("error"), variant: "destructive" });
+            if (operationEpoch.current === epoch) toast({ title: t("error"), variant: "destructive" });
           }
           break;
         case "ask-imam":

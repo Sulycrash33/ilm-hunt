@@ -1,7 +1,8 @@
-# Break checkpoint — 1 October 2026
+# Historical break checkpoint — 1 October 2026
 
-Work stopped at the owner's request. Resume from this checkpoint; do not merge
-the solo reliability draft until the remaining checks below are complete.
+This records the earlier break. The owner has since resumed work on PR #102.
+See `SOLO_GAMEPLAY_RELIABILITY.md` for the final changes and validation.
+The PR stays unmerged until the owner says to merge.
 
 ## Live release
 
@@ -41,7 +42,7 @@ Branch: `claude/ilm-hunt-solo-reliability`, based on merged PR #101.
   repository in `../tooling/solo-review-fixture`; the local dev server is stopped.
   No live coins, accounts or answer attempts were used for these tests.
 
-## Resume checks
+## Original resume checklist
 
 1. Test Speed Round expiry during pending grading and during the answer reveal,
    ensuring one accepted answer is counted once, then test replay reset.
