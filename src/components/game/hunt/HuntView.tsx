@@ -8,6 +8,7 @@ import { ArrowLeft, Lightbulb, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { rankFor } from "@/lib/ranks";
+import { questionTimeLeft, secondsUntil } from "@/lib/hunt-clock";
 import { useProfile } from "@/hooks/use-profile";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { Translations } from "@/lib/i18n";
@@ -130,7 +131,7 @@ export function HuntView({
   const rules = modeRules ?? CLASSIC_RULES;
   const { t, dir } = useLanguage();
   const { toast } = useToast();
-  const { profile, refresh: refreshProfile } = useProfile();
+  const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile();
   const reduceMotion = useReducedMotion();
 
   // A run is seeded once per mount (and once per "play again"), so the ladder
@@ -142,10 +143,13 @@ export function HuntView({
   // uses the same thresholds as `rank_tiers`, which is what the database
   // derives `profiles.current_rank_id` from. A level-locked run ignores rank
   // entirely — `forceTier` pins the ladder to exactly the level being played.
-  const startTier = rankFor(profile?.totalXp ?? 0).level;
+  const [startTier, setStartTier] = useState<number | null>(null);
+  useEffect(() => {
+    if (!profileLoading && startTier === null) setStartTier(rankFor(profile?.totalXp ?? 0).level);
+  }, [profileLoading, profile, startTier]);
   const ladder = useMemo(
     () =>
-      fixedLadder
+      startTier === null ? [] : fixedLadder
         ? buildFixedLadder(questions)
         : forceTier !== undefined
         ? buildTierLadder(questions, forceTier, { rng: makeRng(seed) })
@@ -202,6 +206,11 @@ export function HuntView({
   const learning = isLearningMode(rules);
 
   const questionStartedAt = useRef(Date.now());
+  const questionBoostMs = useRef(0);
+  const runDeadline = useRef(0);
+  const answerInFlight = useRef(false);
+  const lifelineInFlight = useRef(false);
+  const operationEpoch = useRef(0);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** The graded outcome waiting on a dismissal, in a mode that holds the
    *  reveal. Kept in a ref because it is not rendered — only applied. */
@@ -250,6 +259,12 @@ export function HuntView({
   /** Reset the per-question scratch state whenever a new stage comes up. */
   useEffect(() => {
     if (!question) return;
+    operationEpoch.current++;
+    answerInFlight.current = false;
+    lifelineInFlight.current = false;
+    setGrading(false);
+    setPendingLifeline(null);
+    setShowImam(false);
     setSelected(null);
     setGrade(null);
     setEliminated([]);
@@ -257,11 +272,21 @@ export function HuntView({
     setHolding(false);
     setRemaining(question.timeLimit);
     questionStartedAt.current = Date.now();
-  }, [question?.id, question?.stage]); // eslint-disable-line react-hooks/exhaustive-deps
+    questionBoostMs.current = 0;
+  }, [question?.id, question?.stage, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => {
+    operationEpoch.current++;
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
   }, []);
+
+  // A run can finish while a lifeline is still waiting on the server.
+  // Retire those requests even when the final question stays in the ladder.
+  useEffect(() => {
+    if (!finished) return;
+    operationEpoch.current++;
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+  }, [finished]);
 
   const handleTimeout = useCallback(
     (expired: HuntQuestion) => {
@@ -291,28 +316,17 @@ export function HuntView({
     [toast, t],
   );
 
-  /** The clock. Paused while a reveal is on screen or the run is over, and
-   *  absent entirely in modes that do not time individual questions — Practice
-   *  has no pressure at all, and Speed Round times the run rather than the
-   *  question.
-   *
-   *  `remaining` is deliberately NOT a dependency. It used to be, which meant
-   *  the interval was torn down and recreated on every tick: each new interval
-   *  started counting from whenever that render happened, so a tick was never
-   *  a whole second after the last one and the error accumulated. `TimerRing`
-   *  animates its arc with a 1000ms linear CSS transition, so the ring and the
-   *  number drifted apart and the arc visibly stuttered — it would finish its
-   *  sweep, sit still, then jump. That is the twitching a tester reported.
-   *
-   *  One interval per question now, using the functional update so it never
-   *  needs to read `remaining`. Reaching zero is watched separately below —
-   *  a state updater must stay pure, and React may call it twice. */
+  /** Display a deadline. Returning to a throttled tab catches up immediately;
+   *  a failed grading request cannot refund thinking time. Reveals stay frozen. */
   useEffect(() => {
     if (!rules.perQuestionTimer) return;
     if (!question || locked) return;
 
-    const id = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
-    return () => clearInterval(id);
+    const tick = () => setRemaining(Math.ceil(questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) / 1000));
+    tick();
+    const id = setInterval(tick, 250);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
   }, [question, locked, rules.perQuestionTimer]);
 
   /** Reaching zero, watched apart from the interval that causes it. This does
@@ -321,7 +335,7 @@ export function HuntView({
   useEffect(() => {
     if (!rules.perQuestionTimer) return;
     if (!question || locked) return;
-    if (remaining > 0) return;
+    if (questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) > 0 || answerInFlight.current) return;
     handleTimeout(question);
   }, [remaining, question, locked, handleTimeout, rules.perQuestionTimer]);
 
@@ -360,14 +374,23 @@ export function HuntView({
    * out of time, and everything they answered still counts.
    */
   useEffect(() => {
-    if (rules.runSeconds === null || finished) return;
-    if (runRemaining <= 0) {
-      setState((prev) => endRun(prev, "won"));
-      return;
-    }
-    const id = setInterval(() => setRunRemaining((r) => Math.max(0, r - 1)), 1000);
-    return () => clearInterval(id);
-  }, [rules.runSeconds, runRemaining, finished]);
+    if (rules.runSeconds === null || finished || startTier === null || !question) return;
+    const tick = () => {
+      const left = secondsUntil(runDeadline.current);
+      setRunRemaining(left);
+      // An answer committed before zero still belongs in the final summary.
+      if (left === 0 && !answerInFlight.current) {
+        if (advanceTimer.current) clearTimeout(advanceTimer.current);
+        const pending = pendingAdvance.current;
+        pendingAdvance.current = null;
+        setState(prev => endRun(pending ? applyAnswer(prev, pending) : prev, "won"));
+      }
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
+  }, [rules.runSeconds, finished, startTier, question?.id, question?.stage]);
 
   /**
    * What clearing this level actually earned, asked of the server once the run
@@ -421,17 +444,25 @@ export function HuntView({
   }, [finished, state, categoryId, refreshProfile]);
 
   const handleAnswer = async (index: number) => {
-    if (locked || !question || eliminated.includes(index)) return;
+    if (locked || answerInFlight.current || lifelineInFlight.current || !question || eliminated.includes(index)) return;
+    if (rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0) {
+      setState(prev => endRun(prev, "won"));
+      return;
+    }
+    if (rules.perQuestionTimer && questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) === 0) {
+      handleTimeout(question);
+      return;
+    }
+    answerInFlight.current = true;
+    const epoch = operationEpoch.current;
 
     setSelected(index);
     setGrading(true);
 
     // Measured from the real elapsed time, not the once-a-second display
     // counter, so the pace score reflects when the player actually committed.
-    // `remaining` can exceed the limit after a Time Boost, hence the cap.
     const elapsedMs = Date.now() - questionStartedAt.current;
-    const budgetMs = Math.max(question.timeLimit, remaining) * 1000;
-    const msLeft = Math.max(0, budgetMs - elapsedMs);
+    const msLeft = questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current);
 
     try {
       // Neither the hint nor the double-points power-up is reported here any
@@ -444,6 +475,9 @@ export function HuntView({
         // the classic hunt, which is what keeps that path byte-identical.
         runId,
       });
+      if (operationEpoch.current !== epoch) return;
+      pendingAdvance.current = { correct: result.correct, xpEarned: result.xpEarned, msLeft };
+      answerInFlight.current = false;
       setGrade(result);
       setGrading(false);
       // Keep the coin counter honest: the server credits coins per answer, and
@@ -517,12 +551,21 @@ export function HuntView({
         return;
       }
 
-      advanceTimer.current = setTimeout(() => {
-        setState((prev) =>
-          applyAnswer(prev, { correct: result.correct, xpEarned: result.xpEarned, msLeft }),
-        );
-      }, REVEAL_MS);
+      const advance = () => {
+        if (operationEpoch.current !== epoch) return;
+        const pending = pendingAdvance.current;
+        pendingAdvance.current = null;
+        if (!pending) return;
+        setState(prev => {
+          const next = applyAnswer(prev, pending);
+          return rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0 ? endRun(next, "won") : next;
+        });
+      };
+      if (rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0) advance();
+      else advanceTimer.current = setTimeout(advance, REVEAL_MS);
     } catch {
+      if (operationEpoch.current !== epoch) return;
+      answerInFlight.current = false;
       // Grading failed — give the question back rather than silently eating
       // the attempt or, worse, counting it as wrong.
       setSelected(null);
@@ -540,7 +583,9 @@ export function HuntView({
    * without the server ever hearing about it.
    */
   const handleLifeline = async (id: string) => {
-    if (locked || pendingLifeline || !question || state.lifelinesUsed.includes(id)) return;
+    if (locked || answerInFlight.current || lifelineInFlight.current || pendingLifeline || !question || state.lifelinesUsed.includes(id)) return;
+    if ((rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0) ||
+        (rules.perQuestionTimer && questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) === 0)) return;
 
     const price = lifelinePrices.find((l) => l.id === id);
     if (!price) return;
@@ -550,50 +595,70 @@ export function HuntView({
       return;
     }
 
+    const epoch = operationEpoch.current;
+    lifelineInFlight.current = true;
     setPendingLifeline(id);
-    const spend = await spendLifeline(id, question.id, runId);
-    setPendingLifeline(null);
+    try {
+      const spend = await spendLifeline(id, question.id, runId);
+      if (operationEpoch.current !== epoch) { void refreshProfile(); return; }
+      if (rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0) {
+        void refreshProfile(); setState(prev => endRun(prev, "won")); return;
+      }
+      if (rules.perQuestionTimer && questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) === 0) {
+        void refreshProfile(); handleTimeout(question); return;
+      }
 
-    if (!spend.success) {
+      if (!spend.success) {
+        if (spend.newBalance !== undefined) setCoins(spend.newBalance);
+        toast({
+          title: t("lifelineUnavailable"),
+          description: spend.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (spend.newBalance !== undefined) setCoins(spend.newBalance);
-      toast({
-        title: t("lifelineUnavailable"),
-        description: spend.error,
-        variant: "destructive",
-      });
-      return;
-    }
+      if (spend.paidWith === "inventory") {
+        setStock((prev) => ({ ...prev, [id]: spend.remaining ?? Math.max(0, (prev[id] ?? 1) - 1) }));
+        toast({ title: t("usedFromStock") });
+      }
+      setState((prev) => markLifelineSpent(prev, id));
 
-    if (spend.newBalance !== undefined) setCoins(spend.newBalance);
-    if (spend.paidWith === "inventory") {
-      setStock((prev) => ({ ...prev, [id]: spend.remaining ?? Math.max(0, (prev[id] ?? 1) - 1) }));
-      toast({ title: t("usedFromStock") });
-    }
-    setState((prev) => markLifelineSpent(prev, id));
+      switch (id) {
+        case "fifty-fifty":
+          try {
+            const choices = await fiftyFifty(question.id);
+            if (operationEpoch.current === epoch &&
+                (rules.runSeconds === null || secondsUntil(runDeadline.current) > 0) &&
+                (!rules.perQuestionTimer || questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) > 0)) {
+              setEliminated(choices);
+            }
+          } catch {
+            if (operationEpoch.current === epoch) toast({ title: t("error"), variant: "destructive" });
+          }
+          break;
+        case "ask-imam":
+          setShowImam(true);
+          break;
+        case "skip":
+          setState((prev) => applySkip(prev));
+          break;
+        case "double-points":
+          setDoublePoints(true);
+          break;
+        case "time-boost":
+          questionBoostMs.current += 15000;
+          setRemaining(Math.ceil(questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) / 1000));
+          break;
+      }
 
-    switch (id) {
-      case "fifty-fifty":
-        try {
-          setEliminated(await fiftyFifty(question.id));
-        } catch {
-          toast({ title: t("error"), variant: "destructive" });
-        }
-        break;
-      case "ask-imam":
-        setShowImam(true);
-        break;
-      case "skip":
-        setState((prev) => applySkip(prev));
-        break;
-      case "double-points":
-        setDoublePoints(true);
-        break;
-      case "time-boost":
-        setRemaining((r) => r + 15);
-        break;
+      void refreshProfile();
+    } catch {
+      if (operationEpoch.current === epoch) toast({ title: t("lifelineUnavailable"), variant: "destructive" });
+    } finally {
+      if (operationEpoch.current === epoch) { lifelineInFlight.current = false; setPendingLifeline(null); }
     }
-
-    void refreshProfile();
   };
 
   /**
@@ -619,6 +684,7 @@ export function HuntView({
     setHolding(false);
     pendingAdvance.current = null;
     setSeed(Math.floor(Math.random() * 2 ** 31));
+    setStartTier(rankFor(profile?.totalXp ?? 0).level);
   };
 
   // A fresh seed rebuilds the ladder; reset the run to match it. Stage numbers
@@ -628,11 +694,14 @@ export function HuntView({
     setOutcome(null);
     setRemaining(ladder[0]?.timeLimit ?? 30);
     setRunRemaining(rules.runSeconds ?? 0);
+    runDeadline.current = Date.now() + (rules.runSeconds ?? 0) * 1000;
     timedOutStage.current = -1;
     setReview([]);
     setHolding(false);
     pendingAdvance.current = null;
   }, [ladder]);
+
+  if (startTier === null) return <div role="status" className="p-8 text-center text-on-surface-variant">{t("loadingProfileWait")}</div>;
 
   if (ladder.length === 0) {
     return (
@@ -773,7 +842,7 @@ export function HuntView({
             key={`${question.id}-${index}`}
             label={option}
             index={index}
-            disabled={locked}
+            disabled={locked || pendingLifeline !== null}
             pending={grading && selected === index}
             state={optionState({ index, selected, grade, eliminated })}
             onSelect={() => handleAnswer(index)}

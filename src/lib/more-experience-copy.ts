@@ -1,4 +1,5 @@
 export interface MoreExperienceCopy {
+  soloTimeRemaining: string
   copyRoomInvite: string
   roomInviteCopied: string
   roomInvited: string
@@ -25,6 +26,7 @@ export interface MoreExperienceCopy {
 
 export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id", MoreExperienceCopy> = {
   "en": {
+    "soloTimeRemaining": "{count} seconds remaining",
     "copyRoomInvite": "Copy invitation link",
     "roomInviteCopied": "Invitation link copied",
     "roomInvited": "You were invited! Join the room below.",
@@ -48,6 +50,7 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Your learning journey"
   },
   "ha": {
+    "soloTimeRemaining": "Daƙiƙa {count} sun rage",
     "copyRoomInvite": "Kwafi hanyar gayyata",
     "roomInviteCopied": "An kwafi hanyar gayyata",
     "roomInvited": "An gayyace ka! Shiga ɗakin da ke ƙasa.",
@@ -71,6 +74,7 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Tafiyarka ta ilimi"
   },
   "fr": {
+    "soloTimeRemaining": "{count} secondes restantes",
     "copyRoomInvite": "Copier le lien d’invitation",
     "roomInviteCopied": "Lien d’invitation copié",
     "roomInvited": "Vous êtes invité ! Rejoignez la salle ci-dessous.",
@@ -94,6 +98,7 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Votre parcours d’apprentissage"
   },
   "ar": {
+    "soloTimeRemaining": "تبقى {count} ثانية",
     "copyRoomInvite": "انسخ رابط الدعوة",
     "roomInviteCopied": "تم نسخ رابط الدعوة",
     "roomInvited": "أنت مدعو! انضم إلى الغرفة أدناه.",
@@ -117,6 +122,7 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "رحلتك التعليمية"
   },
   "ms": {
+    "soloTimeRemaining": "Baki {count} saat",
     "copyRoomInvite": "Salin pautan jemputan",
     "roomInviteCopied": "Pautan jemputan disalin",
     "roomInvited": "Anda dijemput! Sertai bilik di bawah.",
@@ -140,6 +146,7 @@ export const moreExperienceCopy: Record<"en" | "ha" | "fr" | "ar" | "ms" | "id",
     "yourJourney": "Perjalanan ilmu anda"
   },
   "id": {
+    "soloTimeRemaining": "Tersisa {count} detik",
     "copyRoomInvite": "Salin tautan undangan",
     "roomInviteCopied": "Tautan undangan disalin",
     "roomInvited": "Kamu diundang! Bergabung ke ruang di bawah.",

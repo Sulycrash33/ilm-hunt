@@ -33,36 +33,41 @@ export function useProfile() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setProfile(null);
+      if (!user) {
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_id, coins, high_score, streak_count, last_spin_at, total_xp")
+        .eq("id", user.id)
+        .single();
+
+      if (!error && data) {
+        setProfile({
+          id: data.id,
+          displayName: data.display_name,
+          avatarId: data.avatar_id,
+          coins: data.coins,
+          highScore: data.high_score,
+          streakCount: data.streak_count,
+          lastSpinAt: data.last_spin_at,
+          totalXp: data.total_xp,
+        });
+      }
+    } catch {
+      // A failed refresh retains the last loaded balance and rank.
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, display_name, avatar_id, coins, high_score, streak_count, last_spin_at, total_xp")
-      .eq("id", user.id)
-      .single();
-
-    if (!error && data) {
-      setProfile({
-        id: data.id,
-        displayName: data.display_name,
-        avatarId: data.avatar_id,
-        coins: data.coins,
-        highScore: data.high_score,
-        streakCount: data.streak_count,
-        lastSpinAt: data.last_spin_at,
-        totalXp: data.total_xp,
-      });
-    }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
