@@ -116,6 +116,7 @@ export default function MultiplayerPage() {
   // active question without an extra round trip.
   const activeQuestionRef = useRef<string | null>(null)
   const answerLock = useRef(false)
+  const answerRecoveryRef = useRef<{ questionId: string; selectedIndex: number } | null>(null)
   const questionsRef = useRef<QuizRoomQuestion[]>([])
   const viewStateRef = useRef<ViewState>("home")
   useEffect(() => {
@@ -131,6 +132,7 @@ export default function MultiplayerPage() {
       return
     }
     activeQuestionRef.current = active.id
+    answerRecoveryRef.current = null
     answerLock.current = false
     setErrorMessage(null)
     setCurrentQuestion(active)
@@ -329,24 +331,58 @@ export default function MultiplayerPage() {
     answerLock.current = true
     setErrorMessage(null)
     const answeringQuestionId = currentQuestion.id
+    const recovery = answerRecoveryRef.current
+    const answerIndex = recovery?.questionId === answeringQuestionId ? recovery.selectedIndex : selectedIndex
 
     try {
       setHasAnswered(true)
+      // An earlier transport failure might still have committed. Resolve it
+      // before submitting another choice, even when its first recovery failed.
+      if (recovery?.questionId === answeringQuestionId) {
+        const saved = await getMyRoomAnswer(roomId, answeringQuestionId, currentUserId!)
+        if (activeQuestionRef.current !== answeringQuestionId) return false
+        if (saved) {
+          answerRecoveryRef.current = null
+          setRestoredAnswer(saved)
+          setLastAnswerCorrect(saved.isCorrect)
+          return true
+        }
+      }
       const result = await submitAnswer(
         {
           roomId,
           questionId: currentQuestion.id,
-          selectedIndex,
+          selectedIndex: answerIndex,
           timeTaken,
         },
         currentUserId!
       )
       if (activeQuestionRef.current !== answeringQuestionId) return true
+      answerRecoveryRef.current = null
+      // A missing saved row cannot rule out the original RPC committing later.
+      // Retry the original choice, and show it even if a different button was
+      // pressed while the response was uncertain.
+      if (answerIndex !== selectedIndex) setRestoredAnswer({ selectedIndex: answerIndex, isCorrect: result.isCorrect })
       setLastAnswerCorrect(result.isCorrect)
       setAnswerPoints(result.pointsEarned)
       return true
     } catch (error) {
       console.error("Error submitting answer:", error)
+      if (activeQuestionRef.current !== answeringQuestionId) return false
+      answerRecoveryRef.current = { questionId: answeringQuestionId, selectedIndex: answerIndex }
+      // The server may have saved the answer before its response was lost.
+      // Restore that exact choice instead of allowing a retry to show a
+      // different choice beside the first answer's idempotent graded result.
+      try {
+        const saved = await getMyRoomAnswer(roomId, answeringQuestionId, currentUserId!)
+        if (activeQuestionRef.current !== answeringQuestionId) return false
+        if (saved) {
+          answerRecoveryRef.current = null
+          setRestoredAnswer(saved)
+          setLastAnswerCorrect(saved.isCorrect)
+          return true
+        }
+      } catch { /* Keep the question retryable if recovery is also offline. */ }
       if (activeQuestionRef.current !== answeringQuestionId) return false
       answerLock.current = false
       setHasAnswered(false)
