@@ -86,8 +86,11 @@ function prefersReducedMotion(): boolean {
  *  device has asked for reduced motion. */
 export function isHapticsEnabled(): boolean {
   if (typeof window === "undefined") return false
-  if (prefersReducedMotion()) return false
+  if (prefersReducedMotion() || document.documentElement.dataset.calmEffects === "true") return false
   try {
+    // The persisted calm setting applies before the provider's hydration effect
+    // sets its document flag, including cues fired by early child effects.
+    if (window.localStorage.getItem("ilm-hunt-reduce-effects") === "true") return false
     // Absent means "not yet chosen", which is on. Only an explicit "false"
     // turns it off, so a cleared storage returns to the default rather than
     // to silence.
