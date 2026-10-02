@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react"
 import { MapPin, AlertCircle, RefreshCw } from "lucide-react"
 import {
   FajrIcon,
@@ -13,53 +13,11 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext"
 import type { Translations } from "@/lib/i18n"
 
-/**
- * Prayer times, as a countdown to the next salah.
- *
- * The card used to be a six-across grid of times and nothing else. On a phone
- * — which is what nearly every player uses — `grid-cols-2` made that three
- * rows of small type, and it answered the wrong question: a worshipper wants
- * to know how long is left, not to read six clock faces and do the
- * subtraction. So the headline is now "Dhuhr in 45m", ticking, and the six
- * times are a secondary strip beneath it.
- *
- * Three things worth knowing about the implementation:
- *
- * The month calendar is fetched once and cached in `localStorage`, keyed by
- * month and rounded coordinates. The old version re-fetched a whole month of
- * times on every single mount of the home page. The cache also gives tomorrow's
- * Fajr for free, which is needed the moment Isha has passed — otherwise the
- * countdown has nothing to count to for the rest of the night.
- *
- * Sunrise is shown in the strip but never counted down to. It marks the end of
- * Fajr's window rather than a prayer in its own right, so "Sunrise in 20m"
- * would be telling the worshipper the wrong thing.
- *
- * The calculation method is ISNA (`method=2`), inherited from the previous
- * version. That is a real choice, not a neutral default — Nigeria, Malaysia
- * and Indonesia commonly use different conventions, and the resulting times
- * differ by minutes. It is pulled out as a constant so it can be made a user
- * setting; until it is, some players will see times that disagree with their
- * local mosque.
- */
-
-/** ISNA. See the note above — this should become a user setting. */
-const CALCULATION_METHOD = 2
-
-/** The five prayers, in order. Sunrise is deliberately not among them. */
-const SALAH = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"] as const
-type Salah = (typeof SALAH)[number]
-
-/** What the strip shows, which does include Sunrise as a boundary marker. */
-const STRIP = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"] as const
-type StripKey = (typeof STRIP)[number]
-
-type Timings = Record<string, string>
-
-interface DayEntry {
-  timings: Timings
-  date: { hijri: { day: string; month: { en: string }; year: string } }
-}
+import {
+  DEFAULT_PRAYER_METHOD, PRAYER_METHODS, PRAYER_METHOD_STORAGE_KEY,
+  STRIP, at, parseClock, tomorrowDate, nextPrayer, loadPrayerCalendar, locateForPrayer,
+  type PrayerDay, type StripKey,
+} from "@/lib/prayer-times"
 
 /**
  * The i18n key for each label on the strip.
@@ -96,23 +54,6 @@ const ICONS: Record<StripKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   Isha: IshaIcon,
 }
 
-/** Aladhan returns times as "05:12 (WAT)". Keep the clock, drop the zone. */
-function parseClock(raw: string | undefined): { h: number; m: number } | null {
-  if (!raw) return null
-  const match = /^(\d{1,2}):(\d{2})/.exec(raw.trim())
-  if (!match) return null
-  const h = Number(match[1])
-  const m = Number(match[2])
-  if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return null
-  return { h, m }
-}
-
-function at(base: Date, clock: { h: number; m: number }): Date {
-  const d = new Date(base)
-  d.setHours(clock.h, clock.m, 0, 0)
-  return d
-}
-
 /** "1h 12m", "45m", "30s" — the unit a worshipper actually wants. */
 function formatGap(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
@@ -124,124 +65,90 @@ function formatGap(ms: number): string {
   return `${s}s`
 }
 
-function cacheKey(lat: number, lon: number, year: number, month: number) {
-  // Two decimals is ~1km, far finer than prayer times vary.
-  return `ilm-prayer:${lat.toFixed(2)}:${lon.toFixed(2)}:${year}-${month}`
-}
-
 export function PrayerTimesCard() {
   const { t } = useLanguage()
-  const [days, setDays] = useState<DayEntry[] | null>(null)
+  const methodId = useId()
+  const [method, setMethod] = useState<number | null>(null)
+  const [calendar, setCalendar] = useState<{ month: string; days: PrayerDay[]; tomorrow: PrayerDay } | null>(null)
   const [location, setLocation] = useState<string | null>(null)
-  // An error *code*, never a translated string. Storing the message would put
-  // `t` in `load`'s dependency array, and `load` drives an effect whose cleanup
-  // aborts the in-flight request — an unstable `t` then means fetch, abort,
-  // fetch, abort, forever. Translate at render instead, where re-running costs
-  // nothing.
-  const [errored, setErrored] = useState(false)
+  const [error, setError] = useState<"location" | "network" | null>(null)
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(() => new Date())
   const abort = useRef<AbortController | null>(null)
+  const month = `${now.getFullYear()}-${now.getMonth()}`
+  const dateKey = `${month}-${now.getDate()}`
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setErrored(false)
-
-    if (!("geolocation" in navigator)) {
-      setErrored(true)
-      setLoading(false)
-      return
-    }
-
-    let coords: GeolocationCoordinates
+  useEffect(() => {
+    let saved = DEFAULT_PRAYER_METHOD
     try {
-      coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (p) => resolve(p.coords),
-          reject,
-          { maximumAge: 30 * 60 * 1000, timeout: 15000 },
-        )
-      })
-    } catch {
-      setErrored(true)
-      setLoading(false)
-      return
-    }
+      const value = Number(localStorage.getItem(PRAYER_METHOD_STORAGE_KEY))
+      if (PRAYER_METHODS.some(option => option.id === value)) saved = value
+    } catch { /* Storage is optional. */ }
+    setMethod(saved)
+  }, [])
 
-    const { latitude, longitude } = coords
-    const today = new Date()
-    const key = cacheKey(latitude, longitude, today.getFullYear(), today.getMonth() + 1)
-
-    try {
-      const cached = localStorage.getItem(key)
-      if (cached) {
-        const parsed = JSON.parse(cached) as { days: DayEntry[]; location: string | null }
-        setDays(parsed.days)
-        setLocation(parsed.location)
-        setLoading(false)
-        return
-      }
-    } catch {
-      // A corrupt cache entry must not stop the fetch below.
-    }
-
+  const load = useCallback(async (forceFresh = false) => {
+    if (method === null) return
     abort.current?.abort()
-    abort.current = new AbortController()
-
+    const controller = new AbortController()
+    abort.current = controller
+    const { signal } = controller
+    setLoading(true)
+    setError(null)
+    let stage: "location" | "network" = "location"
+    // Bound external requests as well as geolocation; a stalled service must
+    // leave the player able to retry. No stale request can finish a newer one.
+    const timeout = setTimeout(() => controller.abort(), 30000)
     try {
-      const res = await fetch(
-        `https://api.aladhan.com/v1/calendar/${today.getFullYear()}/${today.getMonth() + 1}` +
-          `?latitude=${latitude}&longitude=${longitude}&method=${CALCULATION_METHOD}`,
-        { signal: abort.current.signal },
-      )
-      if (!res.ok) throw new Error(`aladhan ${res.status}`)
-      const body = (await res.json()) as { data: DayEntry[] }
-
-      let place: string | null = null
+      if (!navigator.geolocation) throw new Error("Geolocation unavailable")
+      const { latitude, longitude } = await locateForPrayer(signal, forceFresh)
+      stage = "network"
+      const todayDate = new Date()
+      const tomorrow = tomorrowDate(todayDate)
+      const days = await loadPrayerCalendar(latitude, longitude, todayDate, method, signal)
+      const nextDays = tomorrow.getMonth() === todayDate.getMonth()
+        ? days : await loadPrayerCalendar(latitude, longitude, tomorrow, method, signal)
+      if (signal.aborted) return
+      setCalendar({ month: `${todayDate.getFullYear()}-${todayDate.getMonth()}`, days, tomorrow: nextDays[tomorrow.getDate() - 1] })
+      setLocation(null)
+      setLoading(false)
+      // A place label is optional and must never delay showing prayer times.
       try {
         const geo = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client` +
-            `?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
-          { signal: abort.current.signal },
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+          { signal },
         )
         if (geo.ok) {
-          const g = (await geo.json()) as { city?: string; countryCode?: string }
-          place = [g.city, g.countryCode].filter(Boolean).join(", ") || null
+          const place = await geo.json() as { city?: string; countryCode?: string }
+          if (!signal.aborted) setLocation([place.city, place.countryCode].filter(value => typeof value === "string").join(", ") || null)
         }
-      } catch {
-        // The place name is decoration. Times are the point.
-      }
-
-      setDays(body.data)
-      setLocation(place)
-      try {
-        localStorage.setItem(key, JSON.stringify({ days: body.data, location: place }))
-      } catch {
-        // Storage full or blocked: run without the cache.
-      }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setErrored(true)
+      } catch { /* Times remain usable without a place label. */ }
+    } catch {
+      if (abort.current === controller) {
+        setError(stage)
+        setLoading(false)
       }
     } finally {
-      setLoading(false)
+      clearTimeout(timeout)
     }
-  }, [])
+  }, [method])
 
   useEffect(() => {
     void load()
-    return () => abort.current?.abort()
-  }, [load])
+    return () => {
+      const controller = abort.current
+      abort.current = null
+      controller?.abort()
+    }
+  }, [load, dateKey])
 
-  // One tick a second. The countdown is the whole point of the card, and a
-  // minute-resolution clock would sit visibly wrong for up to 59 seconds.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  const today = days?.[now.getDate() - 1]
-  const tomorrow = days?.[now.getDate()] ?? days?.[0]
+  const today = calendar?.month === month ? calendar.days[now.getDate() - 1] : undefined
+  const tomorrow = calendar?.days[now.getDate()] ?? calendar?.tomorrow
 
   const stripTimes = useMemo(() => {
     if (!today) return null
@@ -251,53 +158,63 @@ export function PrayerTimesCard() {
     })
   }, [today, now])
 
-  /** The next salah, rolling over to tomorrow's Fajr once Isha has passed. */
-  const next = useMemo(() => {
-    if (!today) return null
-    for (const name of SALAH) {
-      const clock = parseClock(today.timings[name])
-      if (!clock) continue
-      const when = at(now, clock)
-      if (when.getTime() > now.getTime()) return { name: name as Salah, when }
-    }
-    const fajr = parseClock((tomorrow ?? today).timings.Fajr)
-    if (!fajr) return null
-    const when = at(new Date(now.getTime() + 24 * 60 * 60 * 1000), fajr)
-    return { name: "Fajr" as Salah, when }
-  }, [today, tomorrow, now])
+  const next = useMemo(() => today && tomorrow ? nextPrayer(today, tomorrow, now) : null, [today, tomorrow, now])
 
   const hijri = today?.date?.hijri
 
+  const controls = (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-primary/10 pt-3">
+        <label htmlFor={methodId} className="text-xs text-on-surface-variant">{t("prayerCalculationMethod")}</label>
+        <select
+          id={methodId}
+          value={method ?? DEFAULT_PRAYER_METHOD}
+          className="min-h-10 min-w-0 flex-1 rounded-lg border border-primary/20 bg-background px-2 text-xs text-on-surface"
+          onChange={event => {
+            const value = Number(event.target.value)
+            setMethod(value)
+            try { localStorage.setItem(PRAYER_METHOD_STORAGE_KEY, String(value)) } catch { /* Optional preference. */ }
+          }}
+        >
+          {PRAYER_METHODS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
+        <button type="button" onClick={() => void load(true)} className="grid h-10 w-10 place-items-center rounded-full border border-primary/20 text-primary" aria-label={t("refreshLocation")}>
+          <RefreshCw className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+  )
+
   if (loading) {
     return (
-      <div className="rounded-2xl border border-primary/15 bg-surface-container/50 p-4">
+      <div className="rounded-2xl border border-primary/15 bg-surface-container/50 p-4" role="status" aria-label={t("loading")}>
         <div className="h-7 w-44 animate-pulse rounded bg-white/5" />
         <div className="mt-3 flex gap-2 overflow-hidden">
           {STRIP.map((k) => (
             <div key={k} className="h-16 w-14 shrink-0 animate-pulse rounded-xl bg-white/5" />
           ))}
         </div>
+        {controls}
       </div>
     )
   }
 
-  if (errored || !today || !next) {
+  if (error || !today || !next) {
     return (
       <div className="rounded-2xl border border-primary/15 bg-surface-container/50 p-4">
-        <div className="flex items-start gap-2.5">
+        <div className="flex items-start gap-2.5" role="status">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-on-surface-variant/70" aria-hidden />
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-on-surface-variant">{t("enableLocationForPrayer")}</p>
+            <p className="text-sm text-on-surface-variant">{t(error === "network" ? "prayerLoadError" : "prayerLocationError")}</p>
             <button
               type="button"
               onClick={() => void load()}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary"
+              className="mt-2 min-h-10 inline-flex items-center gap-1.5 rounded-full border border-primary/30 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary"
             >
               <RefreshCw className="h-3 w-3" aria-hidden />
               {t("tryAgain")}
             </button>
           </div>
         </div>
+        {controls}
       </div>
     )
   }
@@ -321,22 +238,22 @@ export function PrayerTimesCard() {
           <p className="text-[11px] uppercase tracking-[0.14em] text-on-surface-variant/60">
             {t("prayerTimesTitle")}
           </p>
-          <p className="truncate font-headline-md text-headline-md leading-tight text-on-surface">
+          <p className="break-words font-headline-md text-headline-md leading-tight text-on-surface">
             {t("nextPrayerIn")
               .replace("{prayer}", t(LABEL_KEYS[next.name]))
               .replace("{time}", formatGap(gap))}
           </p>
         </div>
-        <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-primary">
+        <span className="shrink-0 text-end text-sm font-semibold tabular-nums text-primary">
           {next.when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
 
       {/* All six, scrolling sideways rather than wrapping to three rows. */}
-      <div className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="group" aria-label={t("prayerTimesTitle")} tabIndex={0} className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto rounded-xl px-1 pb-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {stripTimes?.map(({ key, clock, at: when }) => {
           const Icon = ICONS[key]
-          const isNext = key === next.name
+          const isNext = key === next.name && next.when.getDate() === now.getDate()
           const passed = when ? when.getTime() <= now.getTime() : false
           return (
             <div
@@ -364,6 +281,8 @@ export function PrayerTimesCard() {
           )
         })}
       </div>
+
+      {controls}
 
       {(location || hijri) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-on-surface-variant/55">

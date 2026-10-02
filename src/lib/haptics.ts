@@ -86,7 +86,7 @@ function prefersReducedMotion(): boolean {
  *  device has asked for reduced motion. */
 export function isHapticsEnabled(): boolean {
   if (typeof window === "undefined") return false
-  if (prefersReducedMotion()) return false
+  if (prefersReducedMotion() || document.documentElement.dataset.calmEffects === "true") return false
   try {
     // Absent means "not yet chosen", which is on. Only an explicit "false"
     // turns it off, so a cleared storage returns to the default rather than

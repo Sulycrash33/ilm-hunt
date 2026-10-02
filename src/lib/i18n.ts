@@ -18,6 +18,10 @@ export interface Translations extends ExperienceCopy {
   nextPrayerIn: string
   prayerNow: string
   prayerTimesTitle: string
+  prayerCalculationMethod: string
+  prayerLocationError: string
+  prayerLoadError: string
+  refreshLocation: string
   enableLocationForPrayer: string
   loading: string
   save: string
@@ -894,6 +898,10 @@ const enTranslations: Translations = {
   nextPrayerIn: "{prayer} in {time}",
   prayerNow: "It is {prayer} time",
   prayerTimesTitle: "Prayer times",
+  prayerCalculationMethod: "Prayer calculation",
+  prayerLocationError: "Allow location access in your browser settings, then try again.",
+  prayerLoadError: "Prayer times could not be loaded. Please try again.",
+  refreshLocation: "Refresh location",
   enableLocationForPrayer: "Enable location to see prayer times",
   loading: "Loading...",
   save: "Save",
@@ -1715,6 +1723,10 @@ const msTranslations: Translations = {
   nextPrayerIn: "{prayer} dalam {time}",
   prayerNow: "Waktu {prayer} telah masuk",
   prayerTimesTitle: "Waktu solat",
+  prayerCalculationMethod: "Kaedah pengiraan solat",
+  prayerLocationError: "Benarkan akses lokasi dalam tetapan pelayar, kemudian cuba lagi.",
+  prayerLoadError: "Waktu solat tidak dapat dimuatkan. Sila cuba lagi.",
+  refreshLocation: "Muat semula lokasi",
   enableLocationForPrayer: "Aktifkan lokasi untuk melihat waktu solat",
   loading: "Memuatkan...",
   save: "Simpan",
@@ -2536,6 +2548,10 @@ const idTranslations: Translations = {
   nextPrayerIn: "{prayer} dalam {time}",
   prayerNow: "Waktu {prayer} telah masuk",
   prayerTimesTitle: "Waktu solat",
+  prayerCalculationMethod: "Metode perhitungan sholat",
+  prayerLocationError: "Izinkan akses lokasi di pengaturan browser, lalu coba lagi.",
+  prayerLoadError: "Waktu sholat tidak dapat dimuat. Silakan coba lagi.",
+  refreshLocation: "Perbarui lokasi",
   enableLocationForPrayer: "Aktifkan lokasi untuk melihat waktu solat",
   loading: "Memuat...",
   save: "Simpan",
@@ -3357,6 +3373,10 @@ const haTranslations: Translations = {
   nextPrayerIn: "{prayer} cikin {time}",
   prayerNow: "Lokacin {prayer} ya yi",
   prayerTimesTitle: "Lokutan salla",
+  prayerCalculationMethod: "Hanyar lissafin salla",
+  prayerLocationError: "Ba da izinin wurin da kake a saitunan burauza, sannan ka sake gwadawa.",
+  prayerLoadError: "Ba a iya loda lokutan salla ba. Ka sake gwadawa.",
+  refreshLocation: "Sabunta wuri",
   enableLocationForPrayer: "Kunna wuri don ganin lokutan salla",
   loading: "Ana lodawa...",
   save: "Ajiye",
@@ -4178,6 +4198,10 @@ const frTranslations: Translations = {
   nextPrayerIn: "{prayer} dans {time}",
   prayerNow: "C'est l'heure du {prayer}",
   prayerTimesTitle: "Heures de prière",
+  prayerCalculationMethod: "Méthode de calcul des prières",
+  prayerLocationError: "Autorisez l’accès à votre position dans les paramètres du navigateur, puis réessayez.",
+  prayerLoadError: "Impossible de charger les horaires de prière. Veuillez réessayer.",
+  refreshLocation: "Actualiser la position",
   enableLocationForPrayer: "Activez la localisation pour voir les heures de prière",
   loading: "Chargement...",
   save: "Enregistrer",
@@ -4999,6 +5023,10 @@ const arTranslations: Translations = {
   nextPrayerIn: "{prayer} بعد {time}",
   prayerNow: "حان وقت {prayer}",
   prayerTimesTitle: "مواقيت الصلاة",
+  prayerCalculationMethod: "طريقة حساب الصلاة",
+  prayerLocationError: "اسمح بالوصول إلى الموقع في إعدادات المتصفح، ثم حاول مرة أخرى.",
+  prayerLoadError: "تعذر تحميل مواقيت الصلاة. يرجى المحاولة مرة أخرى.",
+  refreshLocation: "تحديث الموقع",
   enableLocationForPrayer: "فعّل الموقع لعرض مواقيت الصلاة",
   loading: "جارٍ التحميل...",
   save: "حفظ",

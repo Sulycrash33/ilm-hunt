@@ -11,6 +11,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:engine": "tsx scripts/check-hunt-engine.ts",
+    "test:prayer": "tsx scripts/check-prayer-times.ts",
+    "test:haptics": "tsx scripts/check-haptics.ts",
     "test:clock": "tsx scripts/check-hunt-clock.ts",
     "test:review": "tsx scripts/check-review-queue.ts",
     "test:quality": "tsx scripts/check-question-quality.ts",
