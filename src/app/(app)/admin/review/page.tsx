@@ -35,7 +35,7 @@ export default async function ReviewPage() {
   // unreadable outside a SECURITY DEFINER function. It re-checks the
   // reviewer/admin role itself, so this page's own redirect above and the
   // function's gate agree rather than one being load-bearing on trust.
-  const { data: pending } = await supabase.rpc('reviewer_pending_questions');
+  const { data: pending, error: pendingError } = await supabase.rpc('reviewer_pending_questions');
 
   const reviewQuestions: ReviewQuestion[] = (pending ?? []).map((row: any) => ({
     id: row.o_id,
@@ -66,7 +66,10 @@ export default async function ReviewPage() {
         <h2 className="text-sm font-semibold text-muted-foreground">
           Pending review ({reviewQuestions.length})
         </h2>
-        {reviewQuestions.length === 0 && (
+        {pendingError && (
+          <p role="alert" className="text-sm text-destructive">Could not load the review queue. Refresh this page to try again.</p>
+        )}
+        {!pendingError && reviewQuestions.length === 0 && (
           <p className="text-sm text-muted-foreground italic">Nothing waiting. Draft a batch above to get started.</p>
         )}
         {reviewQuestions.map(q => (

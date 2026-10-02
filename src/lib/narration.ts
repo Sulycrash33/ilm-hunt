@@ -101,8 +101,9 @@ export function splitNarration(text: string): Narration {
     // "Narrated", and lifting it out would silently delete the first sentence
     // of the hadith.
     const looksLikeAName = /[A-Za-z؀-ۿ]/.test(candidate) && !/["“”!?]/.test(candidate)
-    if (looksLikeAName) {
-      return { narrator: candidate, body: spaceAfterColons(source.slice(match[0].length)) }
+    const body = spaceAfterColons(source.slice(match[0].length))
+    if (looksLikeAName && body) {
+      return { narrator: candidate, body }
     }
   }
 

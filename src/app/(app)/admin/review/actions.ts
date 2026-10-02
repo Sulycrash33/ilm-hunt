@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { draftQuestions } from '@/ai/flows/draft-questions';
 import { revalidatePath } from 'next/cache';
+import { reviewEditSchema, type ReviewEdit } from '@/lib/question-review';
 
 async function requireReviewer() {
   const supabase = await createClient();
@@ -88,41 +89,50 @@ export async function generateDraftQuestions(formData: FormData): Promise<Genera
 
 export async function approveQuestion(
   questionId: string,
-  edited: { questionText: string; choices: string[]; correctChoiceIndex: number; explanation: string; citationReference: string; madhabTag: string }
+  edited: ReviewEdit
 ) {
   const { supabase, userId } = await requireReviewer();
+  const parsed = reviewEditSchema.safeParse(edited);
+  if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+  const valid = parsed.data;
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('questions')
     .update({
-      question_text: edited.questionText,
-      choices: edited.choices,
-      correct_choice_index: edited.correctChoiceIndex,
-      explanation: edited.explanation,
-      citation_reference: edited.citationReference,
-      madhab_tag: edited.madhabTag,
+      question_text: valid.questionText,
+      choices: valid.choices,
+      correct_choice_index: valid.correctChoiceIndex,
+      explanation: valid.explanation,
+      citation_reference: valid.citationReference,
+      madhab_tag: valid.madhabTag,
       review_status: 'published',
       reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
     })
-    .eq('id', questionId);
+    .eq('id', questionId)
+    .eq('review_status', 'ai_drafted')
+    .select('id');
 
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('This question is no longer pending review. Refresh the queue.');
   revalidatePath('/admin/review');
 }
 
 export async function rejectQuestion(questionId: string) {
   const { supabase, userId } = await requireReviewer();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('questions')
     .update({
       review_status: 'rejected',
       reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
     })
-    .eq('id', questionId);
+    .eq('id', questionId)
+    .eq('review_status', 'ai_drafted')
+    .select('id');
 
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('This question is no longer pending review. Refresh the queue.');
   revalidatePath('/admin/review');
 }
