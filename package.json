@@ -14,6 +14,8 @@
     "test:clock": "tsx scripts/check-hunt-clock.ts",
     "test:review": "tsx scripts/check-review-queue.ts",
     "test:content-review": "tsx scripts/check-content-review.ts",
+    "test:hadith-tools": "tsx scripts/check-hadith-tools.ts",
+    "test:draft-generation": "tsx scripts/check-draft-generation.ts",
     "test:quality": "tsx scripts/check-question-quality.ts",
     "test:i18n": "tsx scripts/check-i18n.ts",
     "test:narration": "tsx scripts/check-narration.ts",
