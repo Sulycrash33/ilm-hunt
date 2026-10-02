@@ -15,6 +15,8 @@ async function main() {
   assert.equal(questionDeadline("2026-09-30T12:00:00Z", 30, 0), Date.parse("2026-09-30T12:00:30Z"))
   assert.equal(questionDeadline(undefined, 30, 1000), 31000)
   assert.equal(questionDeadline("bad", 30, 1000), 31000)
+  const restoredAt = Date.parse("2026-09-30T12:01:00Z")
+  assert.ok(questionDeadline("2026-09-30T12:00:00Z", 30, restoredAt) < restoredAt, "Restoring an expired round must not restart its timer")
   const standings = [{ id: "c", score: 40 }, { id: "b", score: 100 }, { id: "a", score: 100 }, { id: "d", score: 40 }]
   assert.deepEqual(rankPlayers(standings).map(p => [p.id, p.rank]), [["a", 1], ["b", 1], ["c", 3], ["d", 3]])
   assert.equal(standings[0].id, "c", "Ranking must not mutate room state")
@@ -50,6 +52,249 @@ async function main() {
   retriable.trigger(); await sleep(10); retriable.trigger(); await sleep(10)
   assert.equal(errors, 1); assert.equal(attempts, 2)
   retriable.dispose()
+  let automaticAttempts = 0
+  const automaticValues: number[] = []
+  const automatic = coalescedRefresh(async () => {
+    if (++automaticAttempts < 3) throw new Error("Temporary outage")
+    return 3
+  }, value => automaticValues.push(value), () => {}, 0, 5)
+  automatic.trigger()
+  await sleep(60)
+  assert.equal(automaticAttempts, 3, "A failed snapshot must retry without another room event")
+  assert.deepEqual(automaticValues, [3])
+  automatic.dispose()
+  let cancelledAttempts = 0
+  const cancelledRetry = coalescedRefresh(async () => { cancelledAttempts++; throw new Error("Offline") }, () => assert.fail(), () => {}, 0, 30)
+  cancelledRetry.trigger(); await sleep(10); cancelledRetry.dispose(); await sleep(40)
+  assert.equal(cancelledAttempts, 1, "Leaving a room must cancel a scheduled retry")
+
+  // Exercise the page's real answer handler with deterministic hooks and a
+  // simulated lost RPC response. No browser or production database is needed.
+  const state = new Map<number, unknown>([
+    [6, "quiz"], [9, "room"], [12, { id: "question", choices: ["One", "Two"], timeLimit: 30 }],
+    [13, 1], [14, 5], [17, "player"],
+  ])
+  const refs: Array<{ current: unknown }> = []
+  let stateIndex = 0, refIndex = 0, submissions = 0, recoveryReads = 0
+  let recoveryOffline = false
+  let recoveryMissing = false, submissionSucceeds = false
+  const submittedChoices: number[] = []
+  let submissionGate: Promise<{ isCorrect: boolean; pointsEarned: number }> | undefined
+  let recoveryGate: Promise<{ selectedIndex: number; isCorrect: boolean }> | undefined
+  const savedAnswer = { selectedIndex: 0, isCorrect: true }
+  let snapshotStatus = "in_progress", beginFails = true, beginAttempts = 0
+  let snapshotStart = "2026-09-30T12:00:00Z"
+  let roomCallbacks: { onRoomChange: (room: unknown) => void; onConnectionChange: (status: string) => void }
+  const services = {
+    getRoomState: async () => ({
+      room: { id: "room", code: "ABC123", status: snapshotStatus, currentQuestion: 1, questionCount: 5, hostId: "player", startsAt: snapshotStart },
+      players: [{ userId: "player" }],
+      questions: [{ id: "question", orderNum: 1, startedAt: "2026-09-30T12:00:00Z", timeLimit: 30 }],
+    }),
+    submitAnswer: async (input: { selectedIndex: number }) => {
+      submissions++; submittedChoices.push(input.selectedIndex)
+      if (submissionGate) return submissionGate
+      if (submissionSucceeds) return { isCorrect: true, pointsEarned: 96 }
+      throw new Error("Response lost")
+    },
+    getMyRoomAnswer: async () => { recoveryReads++; if (recoveryOffline) throw new Error("Offline"); return recoveryMissing ? null : recoveryGate ?? savedAnswer },
+    subscribeToRoom: (_room: string, callbacks: typeof roomCallbacks) => { roomCallbacks = callbacks; return () => {} },
+    beginQuiz: async () => { beginAttempts++; if (beginFails) throw new Error("Offline"); snapshotStatus = "in_progress" },
+  }
+  const page: Record<string, () => unknown> = {}
+  const effects: Array<() => unknown> = []
+  const jsxRuntime = await import("react/jsx-runtime")
+  const react = {
+    useState: (initial: unknown) => {
+      const index = stateIndex++
+      return [state.has(index) ? state.get(index) : initial, (value: unknown) => state.set(index, typeof value === "function" ? value(state.has(index) ? state.get(index) : initial) : value)]
+    },
+    useRef: (initial: unknown) => refs[refIndex++] ?? (refs[refIndex - 1] = { current: initial }),
+    useEffect: (callback: () => unknown) => effects.push(callback), useCallback: (callback: unknown) => callback,
+  }
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/app/(app)/multiplayer/page.tsx", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText, { exports: page, console: { error() {} },
+    sessionStorage: { getItem: () => "room" }, window: { location: { search: "" } }, URLSearchParams,
+    setInterval: () => 1, clearInterval: () => {},
+    require: (name: string) => {
+    if (name === "react") return react
+    if (name === "react/jsx-runtime") return jsxRuntime
+    if (name.endsWith("multiplayer-service")) return services
+    if (name.endsWith("multiplayer-experience")) return { parseRoomCode }
+    if (name.endsWith("LanguageContext")) return { useLanguage: () => ({ t: (key: string) => key, dir: "ltr" }) }
+    if (name.endsWith("GameExperienceContext")) return { useGameReducedMotion: () => true }
+    if (name === "framer-motion") return { motion: { div: "div", p: "p" } }
+    return new Proxy({}, { get: (_, key) => String(key) })
+  } })
+  function findAnswerHandler(node: any): ((choice: number, seconds: number) => Promise<boolean>) | undefined {
+    if (!node || typeof node !== "object") return
+    if (node.props?.onAnswer) return node.props.onAnswer
+    for (const child of [node.props?.children].flat(Infinity)) {
+      const found = findAnswerHandler(child)
+      if (found) return found
+    }
+  }
+  function renderPage() {
+    stateIndex = 0; refIndex = 0
+    effects.length = 0
+    return page.default()
+  }
+  function renderAnswerHandler() {
+    const handler = findAnswerHandler(renderPage())!
+    refs[5].current = "question"
+    assert.ok(handler)
+    return handler
+  }
+  let answer = renderAnswerHandler()
+  assert.equal(await answer(0, 2), true)
+  assert.deepEqual(state.get(22), savedAnswer, "Lost responses restore the server's submitted choice")
+  assert.equal(state.get(23), true)
+  refs[6].current = false; refs[7].current = null; state.set(21, false); state.set(22, null)
+  recoveryOffline = true
+  answer = renderAnswerHandler()
+  assert.equal(await answer(0, 2), false)
+  assert.equal(submissions, 2)
+  recoveryOffline = false
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), true)
+  assert.equal(submissions, 2, "A retry must resolve an uncertain commit before sending a different choice")
+  assert.deepEqual(state.get(22), savedAnswer)
+  assert.equal(recoveryReads, 3)
+  refs[6].current = false; state.set(21, false); state.set(22, null)
+  let completeRecovery!: (value: typeof savedAnswer) => void
+  recoveryGate = new Promise(resolve => { completeRecovery = resolve })
+  answer = renderAnswerHandler()
+  const lateAnswer = answer(0, 2)
+  await sleep(0)
+  refs[5].current = "next-question"
+  completeRecovery(savedAnswer)
+  assert.equal(await lateAnswer, false)
+  assert.equal(state.get(22), null, "A late recovered answer cannot overwrite the next round")
+  recoveryGate = undefined; recoveryMissing = true
+  refs[6].current = false; refs[7].current = null; state.set(21, false)
+  answer = renderAnswerHandler()
+  assert.equal(await answer(0, 2), false)
+  submissionSucceeds = true
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), true)
+  assert.equal(submittedChoices.at(-1), 0, "A null recovery read cannot rule out a later commit; retry the original choice")
+  assert.deepEqual(JSON.parse(JSON.stringify(state.get(22))), savedAnswer, "A successful ambiguous retry shows the original choice")
+
+  refs[6].current = false; refs[7].current = null; state.set(21, false); state.set(23, null); state.set(24, null)
+  let finishSubmission!: (value: { isCorrect: boolean; pointsEarned: number }) => void
+  submissionGate = new Promise(resolve => { finishSubmission = resolve })
+  answer = renderAnswerHandler()
+  const lateSubmission = answer(0, 2)
+  refs[5].current = "next-question"
+  finishSubmission({ isCorrect: true, pointsEarned: 96 })
+  assert.equal(await lateSubmission, true)
+  assert.equal(state.get(23), null, "A late successful response cannot grade the next question")
+  assert.equal(state.get(24), null)
+
+  // Restoring a room can succeed while the saved-answer lookup fails. That
+  // uncertainty must still prevent an older answer being shown as a new choice.
+  submissionGate = undefined; recoveryMissing = false; recoveryOffline = true
+  refs[6].current = false; refs[7].current = null; state.set(21, false); state.set(22, null)
+  renderAnswerHandler()
+  const restoreEffect = effects.find(effect => effect.toString().includes("sessionStorage.getItem"))
+  assert.ok(restoreEffect)
+  const stopRestore = restoreEffect() as () => void
+  await sleep(0)
+  assert.deepEqual(JSON.parse(JSON.stringify(refs[7].current)), { questionId: "question", selectedIndex: null })
+  const submissionsBeforeRestoreRetry = submissions
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), false, "An offline saved-answer restore must not permit a fresh submission")
+  assert.equal(submissions, submissionsBeforeRestoreRetry)
+  assert.equal((refs[7].current as { selectedIndex: number | null }).selectedIndex, null, "A failed preflight must not lock a choice that was never submitted")
+  recoveryOffline = false
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), true)
+  assert.equal(submissions, submissionsBeforeRestoreRetry)
+  assert.deepEqual(state.get(22), savedAnswer, "Retry after failed restore recovers the existing submitted choice")
+  stopRestore()
+
+  renderPage()
+  const subscribeEffect = effects.find(effect => effect.toString().includes("subscribeToRoom"))
+  assert.ok(subscribeEffect)
+  const stopSubscription = subscribeEffect() as () => void
+  snapshotStatus = "starting"
+  roomCallbacks!.onRoomChange((await services.getRoomState()).room)
+  await sleep(0)
+  assert.equal(beginAttempts, 1)
+  assert.equal(state.get(25), true, "An elapsed countdown failure needs its own retry state")
+  roomCallbacks!.onConnectionChange("connected")
+  function findRetry(node: any): (() => Promise<void>) | undefined {
+    if (!node || typeof node !== "object") return
+    if (node.props?.children === "tryAgain" && node.props?.onClick) return node.props.onClick
+    for (const child of [node.props?.children].flat(Infinity)) {
+      const found = findRetry(child)
+      if (found) return found
+    }
+  }
+  assert.ok(findRetry(renderPage()), "Reconnecting snapshots cannot hide a failed countdown's retry button")
+  state.set(2, "reconnecting")
+  const retryCountdown = findRetry(renderPage())!
+  beginFails = false
+  await retryCountdown()
+  assert.equal(beginAttempts, 2)
+  assert.equal(state.get(6), "quiz")
+  assert.equal(state.get(25), false)
+  assert.equal(state.get(2), "reconnecting", "Manual snapshot recovery cannot claim Realtime is connected")
+  snapshotStatus = "starting"; snapshotStart = new Date(Date.now() + 60000).toISOString()
+  await findRetry(renderPage())!()
+  assert.equal(state.get(6), "countdown", "A manual refresh during a live countdown cannot return to the lobby")
+  assert.ok(Number(state.get(19)) > 0)
+  assert.equal(beginAttempts, 2, "Manual recovery cannot begin a countdown early")
+  stopSubscription()
+
+  let channelStatus!: (status: string) => void
+  let fallbackTick!: () => void
+  let fallbackCleared = false, channelsRemoved = 0, snapshotReads = 0
+  const listeners = new Map<string, () => void>()
+  const connectionStates: string[] = []
+  const channel = { on() { return this }, subscribe(callback: (status: string) => void) { channelStatus = callback; return this } }
+  const snapshotClient = {
+    channel: () => channel,
+    removeChannel: async () => { channelsRemoved++ },
+    from: (table: string) => {
+      const query = {
+        select() { return this }, eq() { return this },
+        single: async () => { snapshotReads++; return { data: { id: "room", status: "waiting" }, error: null } },
+        order: async () => ({ data: [], error: null }),
+      }
+      assert.ok(["quiz_rooms", "quiz_room_players", "quiz_room_questions_safe"].includes(table))
+      return query
+    },
+  }
+  const serviceExports: Record<string, (...args: any[]) => any> = {}
+  const eventTarget = {
+    visibilityState: "visible",
+    addEventListener: (event: string, callback: () => void) => listeners.set(event, callback),
+    removeEventListener: (event: string) => listeners.delete(event),
+  }
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/multiplayer-service.ts", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, {
+    exports: serviceExports, document: eventTarget, window: eventTarget,
+    setInterval: (callback: () => void) => { fallbackTick = callback; return 1 },
+    clearInterval: () => { fallbackCleared = true },
+    require: (name: string) => name === "./multiplayer-experience" ? { coalescedRefresh } : { createClient: () => snapshotClient },
+  })
+  const unsubscribe = serviceExports.subscribeToRoom("room", { onConnectionChange: (status: string) => connectionStates.push(status) })
+  channelStatus("SUBSCRIBED"); await sleep(80)
+  assert.equal(connectionStates.at(-1), "connected")
+  channelStatus("CHANNEL_ERROR")
+  fallbackTick(); await sleep(80)
+  assert.equal(snapshotReads, 2, "Visible rooms refresh while the channel is reconnecting")
+  assert.equal(connectionStates.at(-1), "reconnecting", "A successful snapshot cannot claim the live channel is connected")
+  eventTarget.visibilityState = "hidden"
+  fallbackTick(); await sleep(80)
+  assert.equal(snapshotReads, 2, "Background rooms do not poll")
+  unsubscribe()
+  assert.equal(fallbackCleared, true)
+  assert.equal(channelsRemoved, 1)
+  assert.equal(listeners.size, 0)
   let authenticated = false
   const calls: Array<{ name: string; args: unknown }> = []
   const client = {
@@ -69,6 +314,6 @@ async function main() {
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), { name: "advance_multiplayer_question_rpc", args: { p_room_id: "room", p_expected_question: 7 } })
   await actions.beginMultiplayerQuiz("room")
   assert.equal(calls[1].name, "begin_multiplayer_quiz_rpc")
-  console.log("Multiplayer invitation, timer, burst, retry and cleanup checks passed")
+  console.log("Multiplayer invitation, timer, lost-answer recovery, reconnect, retry and cleanup checks passed")
 }
 void main().catch(error => { console.error(error); process.exitCode = 1 })

@@ -217,12 +217,13 @@ export function subscribeToRoom(
 ) {
   const supabase = createClient()
   let disposed = false
+  let subscribed = false
   const refresh = coalescedRefresh(() => getRoomState(roomId), (state) => {
     // Questions first: the room callback can immediately resolve its active question.
     callbacks.onQuestionChange?.(state.questions)
     callbacks.onPlayerChange?.(state.players)
     callbacks.onRoomChange?.(state.room)
-    callbacks.onConnectionChange?.("connected")
+    callbacks.onConnectionChange?.(subscribed ? "connected" : "reconnecting")
   }, () => callbacks.onConnectionChange?.("error"))
   callbacks.onConnectionChange?.("connecting")
   const channel = supabase.channel(`room:${roomId}`)
@@ -231,15 +232,22 @@ export function subscribeToRoom(
     .on("postgres_changes", { event: "*", schema: "public", table: "quiz_room_questions", filter: `room_id=eq.${roomId}` }, refresh.trigger)
     .subscribe((status) => {
       if (disposed) return
-      if (status === "SUBSCRIBED") refresh.trigger()
+      subscribed = status === "SUBSCRIBED"
+      if (subscribed) refresh.trigger()
       else callbacks.onConnectionChange?.("reconnecting")
     })
+  // Realtime can miss events while reconnecting. Keep visible rooms usable
+  // through snapshots, without claiming the live subscription has recovered.
+  const recoveryTimer = setInterval(() => {
+    if (!subscribed && document.visibilityState === "visible") refresh.trigger()
+  }, 15000)
   const onVisible = () => { if (document.visibilityState === "visible") refresh.trigger() }
   const onOnline = () => refresh.trigger()
   document.addEventListener("visibilitychange", onVisible)
   window.addEventListener("online", onOnline)
   return () => {
     disposed = true
+    clearInterval(recoveryTimer)
     refresh.dispose()
     document.removeEventListener("visibilitychange", onVisible)
     window.removeEventListener("online", onOnline)

@@ -25,30 +25,49 @@ export function rankPlayers<T extends { id: string; score: number }>(players: T[
 }
 
 /** Batch bursts and serialize refreshes so older responses cannot overwrite newer ones. */
-export function coalescedRefresh<T>(load: () => Promise<T>, apply: (value: T) => void, onError: () => void, delay = 50) {
+export function coalescedRefresh<T>(load: () => Promise<T>, apply: (value: T) => void, onError: () => void, delay = 50, retryDelay = 1000) {
   let disposed = false
   let running = false
   let dirty = false
   let timer: ReturnType<typeof setTimeout> | undefined
+  let failures = 0
+  let retrying = false
+  function schedule(wait: number, retry = false) {
+    retrying = retry
+    timer = setTimeout(run, wait)
+  }
+  async function run() {
+    timer = undefined
+    retrying = false
+    if (disposed) return
+    running = true
+    dirty = false
+    let failed = false
+    try {
+      const value = await load()
+      if (!disposed) apply(value)
+      failures = 0
+    } catch {
+      failed = true
+      failures++
+      if (!disposed) onError()
+    } finally {
+      running = false
+      if (!disposed && (dirty || failed)) {
+        // A failed snapshot must recover even if no further Realtime event arrives.
+        schedule(dirty ? delay : Math.min(retryDelay * 2 ** Math.min(failures - 1, 5), 30000), !dirty)
+      }
+    }
+  }
   function trigger() {
     if (disposed) return
     dirty = true
-    if (running || timer !== undefined) return
-    timer = setTimeout(async () => {
+    if (timer !== undefined && retrying) {
+      clearTimeout(timer)
       timer = undefined
-      if (disposed) return
-      running = true
-      dirty = false
-      try {
-        const value = await load()
-        if (!disposed) apply(value)
-      } catch {
-        if (!disposed) onError()
-      } finally {
-        running = false
-        if (dirty && !disposed) trigger()
-      }
-    }, delay)
+    }
+    if (running || timer !== undefined) return
+    schedule(delay)
   }
   return { trigger, dispose() { disposed = true; if (timer !== undefined) clearTimeout(timer) } }
 }

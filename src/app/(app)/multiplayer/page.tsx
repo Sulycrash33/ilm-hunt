@@ -80,6 +80,7 @@ export default function MultiplayerPage() {
   const [restoredAnswer, setRestoredAnswer] = useState<{ selectedIndex: number; isCorrect: boolean } | null>(null)
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null)
   const [answerPoints, setAnswerPoints] = useState<number | null>(null)
+  const [countdownFailed, setCountdownFailed] = useState(false)
 
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => () => { if (countdownTimer.current) clearInterval(countdownTimer.current) }, [])
@@ -116,6 +117,7 @@ export default function MultiplayerPage() {
   // active question without an extra round trip.
   const activeQuestionRef = useRef<string | null>(null)
   const answerLock = useRef(false)
+  const answerRecoveryRef = useRef<{ questionId: string; selectedIndex: number | null } | null>(null)
   const questionsRef = useRef<QuizRoomQuestion[]>([])
   const viewStateRef = useRef<ViewState>("home")
   useEffect(() => {
@@ -131,6 +133,7 @@ export default function MultiplayerPage() {
       return
     }
     activeQuestionRef.current = active.id
+    answerRecoveryRef.current = null
     answerLock.current = false
     setErrorMessage(null)
     setCurrentQuestion(active)
@@ -174,10 +177,16 @@ export default function MultiplayerPage() {
         applyActiveQuestion(state.room)
         const active = state.questions.find(q => q.orderNum === state.room.currentQuestion)
         if (active && state.room.status === "in_progress") {
+          // Rendering the room must not allow a new submission before this
+          // lookup resolves. A failed restore remains uncertain until retry.
+          answerRecoveryRef.current = { questionId: active.id, selectedIndex: null }
           const answer = await getMyRoomAnswer(saved, active.id, currentUserId!)
-          if (!cancelled && activeQuestionRef.current === active.id && answer) {
-            setRestoredAnswer(answer); setLastAnswerCorrect(answer.isCorrect)
-            setHasAnswered(true); answerLock.current = true
+          if (!cancelled && activeQuestionRef.current === active.id) {
+            answerRecoveryRef.current = null
+            if (answer) {
+              setRestoredAnswer(answer); setLastAnswerCorrect(answer.isCorrect)
+              setHasAnswered(true); answerLock.current = true
+            }
           }
         }
       } catch {
@@ -196,6 +205,7 @@ export default function MultiplayerPage() {
   useEffect(() => { roomRef.current = room }, [room])
 
   const startCountdown = useCallback((startingRoom: QuizRoom) => {
+    setCountdownFailed(false)
     if (countdownTimer.current) clearInterval(countdownTimer.current)
     const start = startingRoom.startsAt ? Date.parse(startingRoom.startsAt) : Date.now() + 5000
     const tick = () => {
@@ -204,7 +214,13 @@ export default function MultiplayerPage() {
       if (remaining > 0) return
       if (countdownTimer.current) clearInterval(countdownTimer.current)
       countdownTimer.current = null
-      void beginQuiz(startingRoom.id).catch(() => { if (roomRef.current?.id === startingRoom.id && roomRef.current.status === "starting") { setErrorMessage(t("failedStartQuiz")); setConnection("error") } })
+      void beginQuiz(startingRoom.id).catch(() => {
+        if (roomRef.current?.id === startingRoom.id && roomRef.current.status === "starting") {
+          setErrorMessage(t("failedStartQuiz"))
+          setCountdownFailed(true)
+          setConnection("error")
+        }
+      })
     }
     countdownTimer.current = setInterval(tick, 250)
     tick()
@@ -220,6 +236,7 @@ export default function MultiplayerPage() {
         setRoom(updatedRoom)
         setIsHost(updatedRoom.hostId === currentUserId)
         setRoomCode(updatedRoom.code)
+        if (updatedRoom.status !== "starting") setCountdownFailed(false)
         if (updatedRoom.status === "waiting") {
           if (viewStateRef.current !== "lobby") {
             activeQuestionRef.current = null
@@ -329,24 +346,63 @@ export default function MultiplayerPage() {
     answerLock.current = true
     setErrorMessage(null)
     const answeringQuestionId = currentQuestion.id
+    const recovery = answerRecoveryRef.current
+    const answerIndex = recovery?.questionId === answeringQuestionId ? recovery.selectedIndex ?? selectedIndex : selectedIndex
+    let submissionAttempted = false
 
     try {
       setHasAnswered(true)
+      // An earlier transport failure might still have committed. Resolve it
+      // before submitting another choice, even when its first recovery failed.
+      if (recovery?.questionId === answeringQuestionId) {
+        const saved = await getMyRoomAnswer(roomId, answeringQuestionId, currentUserId!)
+        if (activeQuestionRef.current !== answeringQuestionId) return false
+        if (saved) {
+          answerRecoveryRef.current = null
+          setRestoredAnswer(saved)
+          setLastAnswerCorrect(saved.isCorrect)
+          return true
+        }
+      }
+      submissionAttempted = true
       const result = await submitAnswer(
         {
           roomId,
           questionId: currentQuestion.id,
-          selectedIndex,
+          selectedIndex: answerIndex,
           timeTaken,
         },
         currentUserId!
       )
       if (activeQuestionRef.current !== answeringQuestionId) return true
+      answerRecoveryRef.current = null
+      // A missing saved row cannot rule out the original RPC committing later.
+      // Retry the original choice, and show it even if a different button was
+      // pressed while the response was uncertain.
+      if (answerIndex !== selectedIndex) setRestoredAnswer({ selectedIndex: answerIndex, isCorrect: result.isCorrect })
       setLastAnswerCorrect(result.isCorrect)
       setAnswerPoints(result.pointsEarned)
       return true
     } catch (error) {
       console.error("Error submitting answer:", error)
+      if (activeQuestionRef.current !== answeringQuestionId) return false
+      answerRecoveryRef.current = {
+        questionId: answeringQuestionId,
+        selectedIndex: submissionAttempted ? answerIndex : recovery?.selectedIndex ?? null,
+      }
+      // The server may have saved the answer before its response was lost.
+      // Restore that exact choice instead of allowing a retry to show a
+      // different choice beside the first answer's idempotent graded result.
+      try {
+        const saved = await getMyRoomAnswer(roomId, answeringQuestionId, currentUserId!)
+        if (activeQuestionRef.current !== answeringQuestionId) return false
+        if (saved) {
+          answerRecoveryRef.current = null
+          setRestoredAnswer(saved)
+          setLastAnswerCorrect(saved.isCorrect)
+          return true
+        }
+      } catch { /* Keep the question retryable if recovery is also offline. */ }
       if (activeQuestionRef.current !== answeringQuestionId) return false
       answerLock.current = false
       setHasAnswered(false)
@@ -406,6 +462,7 @@ export default function MultiplayerPage() {
     setErrorMessage(null)
     setQuestionNumber(0)
     setShowResults(false)
+    setCountdownFailed(false)
   }
 
   const handleToggleReady = async () => {
@@ -456,7 +513,7 @@ export default function MultiplayerPage() {
       {roomId && <div role="status" className="mb-5 flex flex-wrap items-center justify-center gap-3 text-sm text-on-surface-variant">
         <span className={`h-2 w-2 rounded-full ${connection === "connected" ? "bg-tertiary" : "bg-amber-400"}`} aria-hidden="true" />
         <span>{t(connection === "connected" ? "roomConnected" : connection === "error" ? "roomRefreshFailed" : "roomReconnecting")}</span>
-        {connection !== "connected" && <PremiumButton variant="secondary" size="sm" disabled={roomActionPending} onClick={async () => {
+        {(connection !== "connected" || countdownFailed) && <PremiumButton variant="secondary" size="sm" disabled={roomActionPending} onClick={async () => {
           if (!roomId || roomActionLock.current) return
           roomActionLock.current = true; setRoomActionPending(true)
           try {
@@ -469,10 +526,20 @@ export default function MultiplayerPage() {
             questionsRef.current = state.questions; roomRef.current = state.room
             setRoom(state.room); setPlayers(state.players); setIsHost(state.room.hostId === currentUserId)
             applyActiveQuestion(state.room)
-            setViewState(state.room.status === "finished" ? "results" : state.room.status === "in_progress" ? "quiz" : "lobby")
+            if (state.room.status === "starting") {
+              setViewState("countdown")
+              viewStateRef.current = "countdown"
+              startCountdown(state.room)
+            } else {
+              setCountdownFailed(false)
+              setViewState(state.room.status === "finished" ? "results" : state.room.status === "in_progress" ? "quiz" : "lobby")
+            }
             setShowResults(state.room.status === "finished")
-            setConnection("connected")
-          } catch { setConnection("error") }
+            // Snapshot recovery does not establish a live Realtime connection.
+          } catch {
+            setConnection("error")
+            if (roomRef.current?.status === "starting") setCountdownFailed(true)
+          }
           finally { roomActionLock.current = false; setRoomActionPending(false) }
         }}>{t("tryAgain")}</PremiumButton>}
       </div>}
