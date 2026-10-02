@@ -82,7 +82,15 @@ async function main() {
   let submissionGate: Promise<{ isCorrect: boolean; pointsEarned: number }> | undefined
   let recoveryGate: Promise<{ selectedIndex: number; isCorrect: boolean }> | undefined
   const savedAnswer = { selectedIndex: 0, isCorrect: true }
+  let snapshotStatus = "in_progress", beginFails = true, beginAttempts = 0
+  let snapshotStart = "2026-09-30T12:00:00Z"
+  let roomCallbacks: { onRoomChange: (room: unknown) => void; onConnectionChange: (status: string) => void }
   const services = {
+    getRoomState: async () => ({
+      room: { id: "room", code: "ABC123", status: snapshotStatus, currentQuestion: 1, questionCount: 5, hostId: "player", startsAt: snapshotStart },
+      players: [{ userId: "player" }],
+      questions: [{ id: "question", orderNum: 1, startedAt: "2026-09-30T12:00:00Z", timeLimit: 30 }],
+    }),
     submitAnswer: async (input: { selectedIndex: number }) => {
       submissions++; submittedChoices.push(input.selectedIndex)
       if (submissionGate) return submissionGate
@@ -90,23 +98,30 @@ async function main() {
       throw new Error("Response lost")
     },
     getMyRoomAnswer: async () => { recoveryReads++; if (recoveryOffline) throw new Error("Offline"); return recoveryMissing ? null : recoveryGate ?? savedAnswer },
+    subscribeToRoom: (_room: string, callbacks: typeof roomCallbacks) => { roomCallbacks = callbacks; return () => {} },
+    beginQuiz: async () => { beginAttempts++; if (beginFails) throw new Error("Offline"); snapshotStatus = "in_progress" },
   }
   const page: Record<string, () => unknown> = {}
+  const effects: Array<() => unknown> = []
   const jsxRuntime = await import("react/jsx-runtime")
   const react = {
     useState: (initial: unknown) => {
       const index = stateIndex++
-      return [state.has(index) ? state.get(index) : initial, (value: unknown) => state.set(index, value)]
+      return [state.has(index) ? state.get(index) : initial, (value: unknown) => state.set(index, typeof value === "function" ? value(state.has(index) ? state.get(index) : initial) : value)]
     },
     useRef: (initial: unknown) => refs[refIndex++] ?? (refs[refIndex - 1] = { current: initial }),
-    useEffect: () => {}, useCallback: (callback: unknown) => callback,
+    useEffect: (callback: () => unknown) => effects.push(callback), useCallback: (callback: unknown) => callback,
   }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/app/(app)/multiplayer/page.tsx", "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText, { exports: page, console: { error() {} }, require: (name: string) => {
+  }).outputText, { exports: page, console: { error() {} },
+    sessionStorage: { getItem: () => "room" }, window: { location: { search: "" } }, URLSearchParams,
+    setInterval: () => 1, clearInterval: () => {},
+    require: (name: string) => {
     if (name === "react") return react
     if (name === "react/jsx-runtime") return jsxRuntime
     if (name.endsWith("multiplayer-service")) return services
+    if (name.endsWith("multiplayer-experience")) return { parseRoomCode }
     if (name.endsWith("LanguageContext")) return { useLanguage: () => ({ t: (key: string) => key, dir: "ltr" }) }
     if (name.endsWith("GameExperienceContext")) return { useGameReducedMotion: () => true }
     if (name === "framer-motion") return { motion: { div: "div", p: "p" } }
@@ -120,9 +135,13 @@ async function main() {
       if (found) return found
     }
   }
-  function renderAnswerHandler() {
+  function renderPage() {
     stateIndex = 0; refIndex = 0
-    const handler = findAnswerHandler(page.default())!
+    effects.length = 0
+    return page.default()
+  }
+  function renderAnswerHandler() {
+    const handler = findAnswerHandler(renderPage())!
     refs[5].current = "question"
     assert.ok(handler)
     return handler
@@ -172,6 +191,62 @@ async function main() {
   assert.equal(await lateSubmission, true)
   assert.equal(state.get(23), null, "A late successful response cannot grade the next question")
   assert.equal(state.get(24), null)
+
+  // Restoring a room can succeed while the saved-answer lookup fails. That
+  // uncertainty must still prevent an older answer being shown as a new choice.
+  submissionGate = undefined; recoveryMissing = false; recoveryOffline = true
+  refs[6].current = false; refs[7].current = null; state.set(21, false); state.set(22, null)
+  renderAnswerHandler()
+  const restoreEffect = effects.find(effect => effect.toString().includes("sessionStorage.getItem"))
+  assert.ok(restoreEffect)
+  const stopRestore = restoreEffect() as () => void
+  await sleep(0)
+  assert.deepEqual(JSON.parse(JSON.stringify(refs[7].current)), { questionId: "question", selectedIndex: null })
+  const submissionsBeforeRestoreRetry = submissions
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), false, "An offline saved-answer restore must not permit a fresh submission")
+  assert.equal(submissions, submissionsBeforeRestoreRetry)
+  assert.equal((refs[7].current as { selectedIndex: number | null }).selectedIndex, null, "A failed preflight must not lock a choice that was never submitted")
+  recoveryOffline = false
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), true)
+  assert.equal(submissions, submissionsBeforeRestoreRetry)
+  assert.deepEqual(state.get(22), savedAnswer, "Retry after failed restore recovers the existing submitted choice")
+  stopRestore()
+
+  renderPage()
+  const subscribeEffect = effects.find(effect => effect.toString().includes("subscribeToRoom"))
+  assert.ok(subscribeEffect)
+  const stopSubscription = subscribeEffect() as () => void
+  snapshotStatus = "starting"
+  roomCallbacks!.onRoomChange((await services.getRoomState()).room)
+  await sleep(0)
+  assert.equal(beginAttempts, 1)
+  assert.equal(state.get(25), true, "An elapsed countdown failure needs its own retry state")
+  roomCallbacks!.onConnectionChange("connected")
+  function findRetry(node: any): (() => Promise<void>) | undefined {
+    if (!node || typeof node !== "object") return
+    if (node.props?.children === "tryAgain" && node.props?.onClick) return node.props.onClick
+    for (const child of [node.props?.children].flat(Infinity)) {
+      const found = findRetry(child)
+      if (found) return found
+    }
+  }
+  assert.ok(findRetry(renderPage()), "Reconnecting snapshots cannot hide a failed countdown's retry button")
+  state.set(2, "reconnecting")
+  const retryCountdown = findRetry(renderPage())!
+  beginFails = false
+  await retryCountdown()
+  assert.equal(beginAttempts, 2)
+  assert.equal(state.get(6), "quiz")
+  assert.equal(state.get(25), false)
+  assert.equal(state.get(2), "reconnecting", "Manual snapshot recovery cannot claim Realtime is connected")
+  snapshotStatus = "starting"; snapshotStart = new Date(Date.now() + 60000).toISOString()
+  await findRetry(renderPage())!()
+  assert.equal(state.get(6), "countdown", "A manual refresh during a live countdown cannot return to the lobby")
+  assert.ok(Number(state.get(19)) > 0)
+  assert.equal(beginAttempts, 2, "Manual recovery cannot begin a countdown early")
+  stopSubscription()
 
   let channelStatus!: (status: string) => void
   let fallbackTick!: () => void
