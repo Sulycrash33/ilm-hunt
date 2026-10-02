@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useRef, useState } from "react"
 import {
   getHadithTexts,
   saveHadith,
@@ -34,7 +34,8 @@ export function HadithsPageClient({
   listError: string | null
 }) {
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
+  const operationLock = useRef(false)
 
   const [editing, setEditing] = useState<HadithRow | null>(null)
   const [reference, setReference] = useState("")
@@ -43,7 +44,23 @@ export function HadithsPageClient({
   const [texts, setTexts] = useState<Record<string, HadithText>>(EMPTY)
   const [tab, setTab] = useState<HadithLocale>("en")
 
+  const runOperation = async (operation: () => Promise<void>) => {
+    if (operationLock.current) return
+    operationLock.current = true
+    setIsPending(true)
+    setMessage(null)
+    try {
+      await operation()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not complete this request. Please try again.")
+    } finally {
+      operationLock.current = false
+      setIsPending(false)
+    }
+  }
+
   const startNew = () => {
+    if (operationLock.current) return
     setEditing(null)
     setReference("")
     setPosition(rows.length)
@@ -54,8 +71,7 @@ export function HadithsPageClient({
   }
 
   const startEdit = (row: HadithRow) => {
-    setMessage(null)
-    startTransition(async () => {
+    return runOperation(async () => {
       const r = await getHadithTexts(row.id)
       if (!r.ok) {
         setMessage(r.error)
@@ -77,8 +93,7 @@ export function HadithsPageClient({
     setTexts((prev) => ({ ...prev, [locale]: { ...field(locale), ...patch } }))
 
   const handleSave = () => {
-    setMessage(null)
-    startTransition(async () => {
+    return runOperation(async () => {
       const r = await saveHadith({
         id: editing?.id,
         reference,
@@ -96,8 +111,7 @@ export function HadithsPageClient({
 
   const handleDeleteLocale = (locale: HadithLocale) => {
     if (!editing) return
-    setMessage(null)
-    startTransition(async () => {
+    return runOperation(async () => {
       const r = await deleteHadithLocale(editing.id, locale)
       if (!r.ok) {
         setMessage(r.error)
@@ -152,6 +166,7 @@ export function HadithsPageClient({
           <h2 className="font-headline-md text-headline-md text-on-surface">Narrations</h2>
           <button
             onClick={startNew}
+            disabled={isPending}
             className="rounded-lg bg-primary/20 border border-primary/40 px-4 py-2 text-sm text-primary"
           >
             Add a hadith
@@ -213,6 +228,8 @@ export function HadithsPageClient({
       </div>
 
       <div className="glass-card p-5">
+        <fieldset disabled={isPending}>
+        <legend className="sr-only">Hadith editor</legend>
         <h2 className="font-headline-md text-headline-md text-on-surface mb-3">
           {editing ? `Editing ${editing.reference}` : "New hadith"}
         </h2>
@@ -320,6 +337,7 @@ export function HadithsPageClient({
           A language left blank is left alone, not cleared — saving one tab cannot wipe another.
           Use the remove link to take a language out.
         </p>
+        </fieldset>
       </div>
     </div>
   )

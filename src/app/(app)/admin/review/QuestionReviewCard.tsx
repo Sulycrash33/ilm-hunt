@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -25,8 +25,11 @@ export type ReviewQuestion = {
 };
 
 export function QuestionReviewCard({ q }: { q: ReviewQuestion }) {
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
+  const saveLock = useRef(false);
   const [decided, setDecided] = useState<'approved' | 'rejected' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fieldId = `review-${q.id}`;
 
   const needsVerification = q.citation_reference?.includes('[AI: please verify]') ?? false;
 
@@ -37,8 +40,12 @@ export function QuestionReviewCard({ q }: { q: ReviewQuestion }) {
   const [citation, setCitation] = useState((q.citation_reference ?? '').replace(' [AI: please verify]', ''));
   const [madhab, setMadhab] = useState(q.madhab_tag);
 
-  function handleApprove() {
-    startTransition(async () => {
+  async function handleApprove() {
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setIsPending(true);
+    setError(null);
+    try {
       await approveQuestion(q.id, {
         questionText,
         choices,
@@ -48,14 +55,28 @@ export function QuestionReviewCard({ q }: { q: ReviewQuestion }) {
         madhabTag: madhab,
       });
       setDecided('approved');
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not publish this question. Please try again.');
+    } finally {
+      saveLock.current = false;
+      setIsPending(false);
+    }
   }
 
-  function handleReject() {
-    startTransition(async () => {
+  async function handleReject() {
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setIsPending(true);
+    setError(null);
+    try {
       await rejectQuestion(q.id);
       setDecided('rejected');
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not reject this question. Please try again.');
+    } finally {
+      saveLock.current = false;
+      setIsPending(false);
+    }
   }
 
   if (decided) {
@@ -87,62 +108,69 @@ export function QuestionReviewCard({ q }: { q: ReviewQuestion }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Question</Label>
-          <Textarea value={questionText} onChange={e => setQuestionText(e.target.value)} rows={2} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Choices (select the correct one)</Label>
+        <fieldset disabled={isPending} className="space-y-3">
+          <legend className="sr-only">Review question</legend>
           <div className="space-y-1.5">
-            {choices.map((choice, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name={`correct-${q.id}`}
-                  checked={correctIndex === i}
-                  onChange={() => setCorrectIndex(i)}
-                  className="h-4 w-4 accent-primary"
-                />
-                <Input
-                  value={choice}
-                  onChange={e => {
-                    const next = [...choices];
-                    next[i] = e.target.value;
-                    setChoices(next);
-                  }}
-                  className={correctIndex === i ? 'border-success' : ''}
-                />
-              </div>
-            ))}
+            <Label htmlFor={`${fieldId}-question`} className="text-xs">Question</Label>
+            <Textarea id={`${fieldId}-question`} value={questionText} onChange={e => setQuestionText(e.target.value)} rows={2} />
           </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Explanation</Label>
-          <Textarea value={explanation} onChange={e => setExplanation(e.target.value)} rows={2} />
-        </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Choices (select the correct one)</Label>
+            <div className="space-y-1.5">
+              {choices.map((choice, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`correct-${q.id}`}
+                    aria-label={`Choice ${i + 1} is correct`}
+                    checked={correctIndex === i}
+                    onChange={() => setCorrectIndex(i)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <Input
+                    aria-label={`Choice ${i + 1}`}
+                    value={choice}
+                    onChange={e => {
+                      const next = [...choices];
+                      next[i] = e.target.value;
+                      setChoices(next);
+                    }}
+                    className={correctIndex === i ? 'border-success' : ''}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
-        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Citation</Label>
-            <Input value={citation} onChange={e => setCitation(e.target.value)} />
+            <Label htmlFor={`${fieldId}-explanation`} className="text-xs">Explanation</Label>
+            <Textarea id={`${fieldId}-explanation`} value={explanation} onChange={e => setExplanation(e.target.value)} rows={2} />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Madhab tag</Label>
-            <Select value={madhab} onValueChange={setMadhab}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="agreed">Agreed (all schools)</SelectItem>
-                <SelectItem value="hanafi">Hanafi</SelectItem>
-                <SelectItem value="maliki">Maliki</SelectItem>
-                <SelectItem value="shafii">Shafi'i</SelectItem>
-                <SelectItem value="hanbali">Hanbali</SelectItem>
-                <SelectItem value="na">N/A (non-Fiqh)</SelectItem>
-              </SelectContent>
-            </Select>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${fieldId}-citation`} className="text-xs">Citation</Label>
+              <Input id={`${fieldId}-citation`} value={citation} onChange={e => setCitation(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${fieldId}-madhab`} className="text-xs">Madhab tag</Label>
+              <Select value={madhab} onValueChange={setMadhab}>
+                <SelectTrigger id={`${fieldId}-madhab`} disabled={isPending}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agreed">Agreed (all schools)</SelectItem>
+                  <SelectItem value="hanafi">Hanafi</SelectItem>
+                  <SelectItem value="maliki">Maliki</SelectItem>
+                  <SelectItem value="shafii">Shafi'i</SelectItem>
+                  <SelectItem value="hanbali">Hanbali</SelectItem>
+                  <SelectItem value="na">N/A (non-Fiqh)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        </fieldset>
+
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
         <div className="flex gap-2 pt-1">
           <Button onClick={handleApprove} disabled={isPending} size="sm" className="gap-1.5">

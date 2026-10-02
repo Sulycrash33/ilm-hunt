@@ -96,6 +96,12 @@ check("Hausa is returned untouched",
 
 // ------------------------------------------------------------------ nothing
 check("empty text does not throw", splitNarration("").body === "" && splitNarration("").narrator === null);
+check("a heading-only imported entry does not become an empty quotation",
+  splitNarration("Narrated Abu Huraira: ").narrator === null
+    && splitNarration("Narrated Abu Huraira: ").body === "Narrated Abu Huraira:");
+const longBody = "A complete sentence with a reference (6:83). ".repeat(300);
+check("a long narration retains its entire body",
+  splitNarration(`Narrated Anas:${longBody}`).body === longBody.trim());
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
