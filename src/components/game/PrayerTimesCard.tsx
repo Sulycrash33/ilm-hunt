@@ -15,8 +15,8 @@ import type { Translations } from "@/lib/i18n"
 
 import {
   DEFAULT_PRAYER_METHOD, PRAYER_METHODS, PRAYER_METHOD_STORAGE_KEY,
-  STRIP, at, parseClock, tomorrowDate, nextPrayer, loadPrayerCalendar, locateForPrayer,
-  type PrayerDay, type StripKey,
+  STRIP, at, parseClock, prayerDate, prayerMonthKey, prayerDateKey, nextPrayer, loadPrayerSchedule, locateForPrayer,
+  type PrayerSchedule, type StripKey,
 } from "@/lib/prayer-times"
 
 /**
@@ -66,17 +66,19 @@ function formatGap(ms: number): string {
 }
 
 export function PrayerTimesCard() {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const methodId = useId()
   const [method, setMethod] = useState<number | null>(null)
-  const [calendar, setCalendar] = useState<{ month: string; days: PrayerDay[]; tomorrow: PrayerDay } | null>(null)
+  const [calendar, setCalendar] = useState<PrayerSchedule | null>(null)
   const [location, setLocation] = useState<string | null>(null)
   const [error, setError] = useState<"location" | "network" | null>(null)
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(() => new Date())
   const abort = useRef<AbortController | null>(null)
-  const month = `${now.getFullYear()}-${now.getMonth()}`
-  const dateKey = `${month}-${now.getDate()}`
+  const timezone = calendar?.timezone ?? "UTC"
+  const localDate = prayerDate(now, timezone)
+  const month = prayerMonthKey(localDate)
+  const dateKey = prayerDateKey(localDate)
 
   useEffect(() => {
     let saved = DEFAULT_PRAYER_METHOD
@@ -103,13 +105,9 @@ export function PrayerTimesCard() {
       if (!navigator.geolocation) throw new Error("Geolocation unavailable")
       const { latitude, longitude } = await locateForPrayer(signal, forceFresh)
       stage = "network"
-      const todayDate = new Date()
-      const tomorrow = tomorrowDate(todayDate)
-      const days = await loadPrayerCalendar(latitude, longitude, todayDate, method, signal)
-      const nextDays = tomorrow.getMonth() === todayDate.getMonth()
-        ? days : await loadPrayerCalendar(latitude, longitude, tomorrow, method, signal)
-      if (signal.aborted) return
-      setCalendar({ month: `${todayDate.getFullYear()}-${todayDate.getMonth()}`, days, tomorrow: nextDays[tomorrow.getDate() - 1] })
+      const schedule = await loadPrayerSchedule(latitude, longitude, method, signal)
+      if (signal.aborted || abort.current !== controller) return
+      setCalendar(schedule)
       setLocation(null)
       setLoading(false)
       // A place label is optional and must never delay showing prayer times.
@@ -147,16 +145,16 @@ export function PrayerTimesCard() {
     return () => clearInterval(id)
   }, [])
 
-  const today = calendar?.month === month ? calendar.days[now.getDate() - 1] : undefined
-  const tomorrow = calendar?.days[now.getDate()] ?? calendar?.tomorrow
+  const today = calendar?.month === month ? calendar.days[localDate.day - 1] : undefined
+  const tomorrow = calendar?.days[localDate.day] ?? calendar?.tomorrow
 
   const stripTimes = useMemo(() => {
     if (!today) return null
     return STRIP.map((key) => {
       const clock = parseClock(today.timings[key])
-      return { key, clock, at: clock ? at(now, clock) : null }
+      return { key, clock, at: clock ? at(localDate, clock, timezone) : null }
     })
-  }, [today, now])
+  }, [today, dateKey, timezone])
 
   const next = useMemo(() => today && tomorrow ? nextPrayer(today, tomorrow, now) : null, [today, tomorrow, now])
 
@@ -245,7 +243,7 @@ export function PrayerTimesCard() {
           </p>
         </div>
         <span className="shrink-0 text-end text-sm font-semibold tabular-nums text-primary">
-          {next.when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          {next.when.toLocaleTimeString(locale, { timeZone: timezone, hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
 
@@ -253,7 +251,7 @@ export function PrayerTimesCard() {
       <div role="group" aria-label={t("prayerTimesTitle")} tabIndex={0} className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto rounded-xl px-1 pb-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {stripTimes?.map(({ key, clock, at: when }) => {
           const Icon = ICONS[key]
-          const isNext = key === next.name && next.when.getDate() === now.getDate()
+          const isNext = key === next.name && prayerDateKey(next.date) === dateKey
           const passed = when ? when.getTime() <= now.getTime() : false
           return (
             <div
@@ -284,7 +282,7 @@ export function PrayerTimesCard() {
 
       {controls}
 
-      {(location || hijri) && (
+      {(location || hijri || timezone) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-on-surface-variant/55">
           {location && (
             <span className="inline-flex items-center gap-1">
@@ -292,6 +290,7 @@ export function PrayerTimesCard() {
               {location}
             </span>
           )}
+          <span>{timezone}</span>
           {hijri && (
             <span>
               {hijri.day} {hijri.month.en} {hijri.year} AH
