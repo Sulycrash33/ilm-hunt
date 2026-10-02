@@ -179,9 +179,16 @@ export default function MultiplayerPage() {
         if (active && state.room.status === "in_progress") {
           // Rendering the room must not allow a new submission before this
           // lookup resolves. A failed restore remains uncertain until retry.
-          answerRecoveryRef.current = { questionId: active.id, selectedIndex: null }
-          const answer = await getMyRoomAnswer(saved, active.id, currentUserId!)
-          if (!cancelled && activeQuestionRef.current === active.id) {
+          const restoringAnswer = { questionId: active.id, selectedIndex: null }
+          answerRecoveryRef.current = restoringAnswer
+          let answer
+          try {
+            answer = await getMyRoomAnswer(saved, active.id, currentUserId!)
+          } catch (error) {
+            if (cancelled || activeQuestionRef.current !== active.id || answerRecoveryRef.current !== restoringAnswer) return
+            throw error
+          }
+          if (!cancelled && activeQuestionRef.current === active.id && answerRecoveryRef.current === restoringAnswer) {
             answerRecoveryRef.current = null
             if (answer) {
               setRestoredAnswer(answer); setLastAnswerCorrect(answer.isCorrect)
@@ -347,6 +354,10 @@ export default function MultiplayerPage() {
     setErrorMessage(null)
     const answeringQuestionId = currentQuestion.id
     const recovery = answerRecoveryRef.current
+    // The initial restore lookup may still be in flight. Once the player
+    // starts their own recovery, that older read must not clear its marker
+    // or replace the result, even while both concern the same question.
+    if (recovery) answerRecoveryRef.current = { ...recovery }
     const answerIndex = recovery?.questionId === answeringQuestionId ? recovery.selectedIndex ?? selectedIndex : selectedIndex
     let submissionAttempted = false
 

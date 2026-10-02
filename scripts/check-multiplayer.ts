@@ -81,6 +81,8 @@ async function main() {
   const submittedChoices: number[] = []
   let submissionGate: Promise<{ isCorrect: boolean; pointsEarned: number }> | undefined
   let recoveryGate: Promise<{ selectedIndex: number; isCorrect: boolean }> | undefined
+  let initialReadGate: Promise<null> | undefined
+  let initialGateRead = -1
   const savedAnswer = { selectedIndex: 0, isCorrect: true }
   let snapshotStatus = "in_progress", beginFails = true, beginAttempts = 0
   let snapshotStart = "2026-09-30T12:00:00Z"
@@ -97,7 +99,12 @@ async function main() {
       if (submissionSucceeds) return { isCorrect: true, pointsEarned: 96 }
       throw new Error("Response lost")
     },
-    getMyRoomAnswer: async () => { recoveryReads++; if (recoveryOffline) throw new Error("Offline"); return recoveryMissing ? null : recoveryGate ?? savedAnswer },
+    getMyRoomAnswer: async () => {
+      recoveryReads++
+      if (recoveryReads === initialGateRead) return initialReadGate
+      if (recoveryOffline) throw new Error("Offline")
+      return recoveryMissing ? null : recoveryGate ?? savedAnswer
+    },
     subscribeToRoom: (_room: string, callbacks: typeof roomCallbacks) => { roomCallbacks = callbacks; return () => {} },
     beginQuiz: async () => { beginAttempts++; if (beginFails) throw new Error("Offline"); snapshotStatus = "in_progress" },
   }
@@ -213,6 +220,29 @@ async function main() {
   assert.equal(submissions, submissionsBeforeRestoreRetry)
   assert.deepEqual(state.get(22), savedAnswer, "Retry after failed restore recovers the existing submitted choice")
   stopRestore()
+
+  // Keep the mount's lookup pending while a newer submission loses its
+  // response. Its eventual null must not clear the newer recovery marker.
+  recoveryMissing = true; submissionSucceeds = false
+  refs[5].current = null; refs[6].current = false; refs[7].current = null
+  state.set(21, false); state.set(22, null)
+  let finishSlowRestore!: (value: null) => void
+  initialReadGate = new Promise(resolve => { finishSlowRestore = resolve })
+  initialGateRead = recoveryReads + 1
+  renderAnswerHandler()
+  const slowRestoreEffect = effects.find(effect => effect.toString().includes("sessionStorage.getItem"))!
+  const stopSlowRestore = slowRestoreEffect() as () => void
+  await sleep(0)
+  answer = renderAnswerHandler()
+  assert.equal(await answer(0, 2), false)
+  finishSlowRestore(null)
+  await sleep(0)
+  assert.equal((refs[7].current as { selectedIndex: number }).selectedIndex, 0, "A late mount lookup cannot discard a newer uncertain answer")
+  submissionSucceeds = true
+  answer = renderAnswerHandler()
+  assert.equal(await answer(1, 3), true)
+  assert.equal(submittedChoices.at(-1), 0)
+  stopSlowRestore()
 
   renderPage()
   const subscribeEffect = effects.find(effect => effect.toString().includes("subscribeToRoom"))
