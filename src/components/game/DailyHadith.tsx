@@ -120,14 +120,14 @@ export function DailyHadith() {
         )}
 
         <blockquote
-          className="font-quote-italic text-quote-italic italic text-on-surface"
+          className="max-w-full [overflow-wrap:anywhere] font-quote-italic text-quote-italic italic text-on-surface"
           {...(isFallback ? { lang: "en", dir: "ltr" } : {})}
         >
           {body}
         </blockquote>
 
         <cite
-          className="font-label-caps text-label-caps uppercase not-italic tracking-widest text-primary"
+          className="max-w-full [overflow-wrap:anywhere] font-label-caps text-label-caps uppercase not-italic tracking-widest text-primary"
           {...(isFallback ? { lang: "en", dir: "ltr" } : {})}
         >
           {entry.attribution}
