@@ -29,7 +29,11 @@ so screenshots show interaction state and are not a visual-style audit.
 The checks cover a slow initial saved-answer lookup, a lost submission response,
 a retry using a different button, an old saved answer or lookup failure arriving
 after a confirmed result, a genuine initial lookup failure, and a submission
-response arriving after the next question. Existing
+response arriving after the next question.
+Keyboard checks also cover Enter on an answer followed by failed submission and
+saved-answer lookup, and a late prior-round rejection preserving the next
+round's focused control. They also check normal Tab/Enter retry navigation and
+preserve focus when the player moves it while a request is pending. Existing
 `test:multiplayer` checks additionally cover failed snapshots, reconnect status,
 countdown retries and cleanup; `test:multiplayer-db` uses local PGlite for RPC
 grading, permissions and timer behavior.

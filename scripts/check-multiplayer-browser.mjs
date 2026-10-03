@@ -36,17 +36,41 @@ try {
     console.error("Synthetic browser errors:", errors, "Rendered text:", await page.locator("body").innerText())
     throw error
   }
-  await first.click()
+  await page.evaluate(() => window.__multiplayerFixture.setRecoveryOffline(true))
+  await first.focus()
+  await first.press("Enter")
   await page.waitForFunction(() => window.__multiplayerFixture.submitted.length === 1)
   await page.waitForFunction(() => !document.querySelector('[aria-keyshortcuts="2"]').disabled)
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Synthetic round 1", "A failed keyboard answer and failed recovery must return focus to the current question")
+  await page.evaluate(() => window.__multiplayerFixture.setRecoveryOffline(false))
   await page.evaluate(() => window.__multiplayerFixture.finishInitialRead())
   await page.getByText("Restoring your room", { exact: false }).waitFor({ state: "hidden" })
-  await second.click()
+  await page.keyboard.press("Tab")
+  assert.equal(await first.evaluate(element => element === document.activeElement), true, "Normal Tab resumes at the first answer after failure")
+  await page.keyboard.press("Tab")
+  assert.equal(await second.evaluate(element => element === document.activeElement), true)
+  await page.keyboard.press("Enter")
   await page.waitForFunction(() => window.__multiplayerFixture.submitted.length === 2)
   assert.deepEqual(await page.evaluate(() => window.__multiplayerFixture.submitted), [0, 0], "A late initial restore cannot discard an uncertain answer's original choice")
   await page.waitForFunction(() => document.querySelector('[aria-keyshortcuts="1"]').getAttribute("aria-pressed") === "true")
   assert.equal(await second.getAttribute("aria-pressed"), "false")
   if (process.env.MULTIPLAYER_SCREENSHOT_PATH) await page.screenshot({ path: process.env.MULTIPLAYER_SCREENSHOT_PATH, fullPage: true })
+
+  // Moving focus while a request is pending is a deliberate choice. Failure
+  // must preserve it rather than redirecting the player to the heading.
+  await page.goto("http://multiplayer.synthetic.invalid/?scenario=manual-focus")
+  await page.addScriptTag({ content: bundle.outputFiles[0].text })
+  await first.waitFor()
+  await page.evaluate(() => { window.__multiplayerFixture.setLate(); window.__multiplayerFixture.finishInitialRead() })
+  await page.getByText("Restoring your room", { exact: false }).waitFor({ state: "hidden" })
+  await first.focus()
+  await first.press("Enter")
+  await page.waitForFunction(() => window.__multiplayerFixture.submitted.length === 1)
+  const questionGroup = page.getByRole("group")
+  await questionGroup.focus()
+  await page.evaluate(() => window.__multiplayerFixture.failLate())
+  await page.waitForFunction(() => !document.querySelector('[aria-keyshortcuts="2"]').disabled)
+  assert.equal(await questionGroup.evaluate(element => element === document.activeElement), true, "A same-round failure must preserve deliberate focus elsewhere")
 
   // A stale saved answer is equally unable to replace a newer confirmed result.
   await page.goto("http://multiplayer.synthetic.invalid/?scenario=stale-saved")
@@ -88,6 +112,26 @@ try {
   await page.waitForFunction(() => !document.querySelector('[aria-keyshortcuts="1"]').disabled)
   assert.equal(await first.getAttribute("aria-pressed"), "false")
   assert.equal(await second.getAttribute("aria-pressed"), "false")
+
+  // An old round's rejection must not move focus away from the player's
+  // chosen control in the next round.
+  await page.goto("http://multiplayer.synthetic.invalid/?scenario=late-failure")
+  await page.addScriptTag({ content: bundle.outputFiles[0].text })
+  await first.waitFor()
+  await page.evaluate(() => { window.__multiplayerFixture.setLate(); window.__multiplayerFixture.finishInitialRead() })
+  await page.getByText("Restoring your room", { exact: false }).waitFor({ state: "hidden" })
+  await first.focus()
+  await first.press("Enter")
+  await page.waitForFunction(() => window.__multiplayerFixture.submitted.length === 1)
+  await page.evaluate(() => window.__multiplayerFixture.advance())
+  await page.getByRole("heading", { name: "Synthetic round 2" }).waitFor()
+  await page.waitForFunction(() => !document.querySelector('[aria-keyshortcuts="2"]').disabled)
+  await second.focus()
+  await page.evaluate(() => window.__multiplayerFixture.failLate())
+  // Await the rejected callback and its finally handler before checking focus.
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 0)))
+  assert.equal(await second.evaluate(element => element === document.activeElement), true, "A prior question's late failure cannot steal the next question's focus")
+  assert.equal(await second.isEnabled(), true)
   assert.deepEqual(errors, [], "Synthetic recovery must not produce uncaught browser errors")
-  console.log("Chromium multiplayer recovery: slow restore, lost response, changed-choice retry, stale saved answer/rejection and late next-round response passed")
+  console.log("Chromium multiplayer recovery: keyboard retry focus, late-failure focus guard, slow restore, lost response and stale/late response checks passed")
 } finally { await browser?.close() }

@@ -7,7 +7,12 @@ export const useLanguage = () => ({ t: text, dir: "ltr" })
 export const useGameReducedMotion = () => true
 export const playCue = () => {}
 const element = (tag: string) => ({ children, initial, animate, transition, whileHover, whileTap, layout, ...props }: any) => React.createElement(tag, props, children)
-export const motion: any = new Proxy({ create: (component: any) => component }, { get: (target, key: string) => key === "create" ? target.create : element(key) })
+const motionElements = new Map<string, ReturnType<typeof element>>()
+export const motion: any = new Proxy({ create: (component: any) => component }, { get: (target, key: string) => {
+  if (key === "create") return target.create
+  if (!motionElements.has(key)) motionElements.set(key, element(key))
+  return motionElements.get(key)
+} })
 export default element("a")
 export const PageHeader = ({ title }: any) => <h1>{title}</h1>
 export const CreateRoomModal = () => null
@@ -31,14 +36,20 @@ let reads = 0
 const submitted: number[] = []
 let callbacks: any
 let finishLateSubmission!: (result: { isCorrect: boolean; pointsEarned: number }) => void
-const lateSubmission = new Promise<{ isCorrect: boolean; pointsEarned: number }>(resolve => { finishLateSubmission = resolve })
+let failLateSubmission!: (error: Error) => void
+const lateSubmission = new Promise<{ isCorrect: boolean; pointsEarned: number }>((resolve, reject) => { finishLateSubmission = resolve; failLateSubmission = reject })
 let late = false
+let recoveryOffline = false
 export const createClient = () => ({
   auth: { getUser: async () => ({ data: { user: { id: "fixture-player", email: "fixture@example.invalid" } } }) },
   from: () => ({ select() { return this }, eq() { return this }, single: async () => ({ data: { display_name: "Fixture player" } }) }),
 })
 export const getRoomState = async () => ({ room: { ...room }, questions, players })
-export const getMyRoomAnswer = async () => ++reads === 1 ? initialRead : null
+export const getMyRoomAnswer = async () => {
+  if (++reads === 1) return initialRead
+  if (recoveryOffline && submitted.length > 0) throw new Error("Synthetic recovery offline")
+  return null
+}
 export const submitAnswer = async (input: { selectedIndex: number }) => {
   submitted.push(input.selectedIndex)
   if (late) return lateSubmission
@@ -67,6 +78,8 @@ Object.assign(window, { __multiplayerFixture: {
   submitted,
   finishInitialRead: () => staleRejection ? rejectInitialRead(new Error("Synthetic old lookup failed")) : finishInitialRead(staleSaved ? { selectedIndex: 1, isCorrect: false } : null),
   setLate: () => { late = true },
+  setRecoveryOffline: (offline: boolean) => { recoveryOffline = offline },
   advance: () => { room.currentQuestion = 2; callbacks.onRoomChange({ ...room }) },
   finishLate: () => finishLateSubmission({ isCorrect: true, pointsEarned: 98 }),
+  failLate: () => failLateSubmission(new Error("Synthetic late failure")),
 } })
