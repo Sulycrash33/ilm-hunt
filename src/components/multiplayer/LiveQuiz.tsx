@@ -126,6 +126,11 @@ export function LiveQuiz({
           answerLock.current = false
           setHasAnswered(Date.now() >= deadline.current)
           setSelectedChoice(null)
+          // Disabling the pressed answer drops keyboard focus. Give the
+          // current question a stable place to retry after a failed request.
+          if (document.activeElement === document.body || document.activeElement?.matches("button:disabled[aria-keyshortcuts]")) {
+            questionHeading.current?.focus()
+          }
         }
       }
     }
