@@ -125,7 +125,7 @@ export function OptionTile({ label, index, state, disabled, onSelect, pending = 
         )}
       </span>
 
-      <span className="min-w-0 flex-1 whitespace-normal font-medium text-on-surface">{label}</span>
+      <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere] font-medium text-on-surface">{label}</span>
     </motion.button>
   );
 }

@@ -161,7 +161,7 @@ export function PrayerTimesCard() {
   const hijri = today?.date?.hijri
 
   const controls = (
-    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-primary/10 pt-3">
+    <div key="prayer-controls" className="mt-3 flex flex-wrap items-center gap-2 border-t border-primary/10 pt-3">
         <label htmlFor={methodId} className="text-xs text-on-surface-variant">{t("prayerCalculationMethod")}</label>
         <select
           id={methodId}

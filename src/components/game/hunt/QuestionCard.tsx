@@ -1,5 +1,6 @@
 "use client";
 
+import type { Ref } from "react";
 import { motion } from "framer-motion";
 import { IslamicPattern } from "@/components/islamic-pattern";
 import { useGameReducedMotion } from "@/contexts/GameExperienceContext";
@@ -7,6 +8,7 @@ import { QuestionTopic } from "./QuestionTopic";
 
 interface QuestionCardProps {
   text: string;
+  headingRef?: Ref<HTMLHeadingElement>;
   /** A raised question surface with the app's existing khatim motif. */
   questionId: string;
   categoryName?: string;
@@ -20,7 +22,7 @@ interface QuestionCardProps {
  * The star is decorative and deliberately low-contrast; it sits behind the
  * text at low opacity so it never competes with reading.
  */
-export function QuestionCard({ text, questionId, categoryName }: QuestionCardProps) {
+export function QuestionCard({ text, headingRef, questionId, categoryName }: QuestionCardProps) {
   const reduce = useGameReducedMotion();
   return (
     <motion.div
@@ -33,7 +35,7 @@ export function QuestionCard({ text, questionId, categoryName }: QuestionCardPro
       <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden="true"><IslamicPattern variant="flat" /></div>
 
       {categoryName && <div className="mb-3"><QuestionTopic name={categoryName} /></div>}
-      <h2 className="relative font-headline text-2xl leading-snug text-on-surface sm:text-3xl">
+      <h2 ref={headingRef} tabIndex={-1} className="relative [overflow-wrap:anywhere] font-headline text-2xl leading-snug text-on-surface sm:text-3xl">
         {text}
       </h2>
     </motion.div>

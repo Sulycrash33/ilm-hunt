@@ -196,8 +196,13 @@ export function HuntView({
   // out how far the run moved the rank bar.
   const xpAtStart = useRef<number | null>(null);
 
+  const questionHeading = useRef<HTMLHeadingElement>(null);
+  const explanationHeading = useRef<HTMLHeadingElement>(null);
   const question = currentQuestion(state);
   const finished = state.status === "won" || state.status === "lost";
+  useEffect(() => { questionHeading.current?.focus(); }, [question?.id]);
+  useEffect(() => { if (grade) explanationHeading.current?.focus(); }, [grade]);
+
   const locked = selected !== null || grading || finished;
 
   /** Whether this run holds the reveal and offers a pause. Practice and the
@@ -833,7 +838,7 @@ export function HuntView({
         frozen={rules.runSeconds !== null ? false : locked}
       />
 
-      <QuestionCard text={question.text} questionId={question.id} categoryName={question.categoryName} />
+      <QuestionCard headingRef={questionHeading} text={question.text} questionId={question.id} categoryName={question.categoryName} />
 
       {doublePoints && (
         <p className="text-center text-sm font-semibold text-tertiary">
@@ -890,13 +895,13 @@ export function HuntView({
             <div className="flex items-start gap-3">
               <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-secondary" aria-hidden="true" />
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="font-semibold text-secondary">{t("whyItsRight")}</p>
+                <h3 ref={explanationHeading} tabIndex={-1} className="font-semibold text-secondary">{t("whyItsRight")}</h3>
                 {/* Capped and scrollable so a long explanation can be read in
                     place instead of pushing the Continue button off screen. */}
-                <div className="max-h-56 overflow-y-auto pe-1">
-                  <p className="text-sm leading-relaxed text-on-surface">{grade.explanation}</p>
+                <div tabIndex={0} role="region" aria-label={t("whyItsRight")} className="max-h-56 overflow-y-auto pe-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                  <p className="text-sm leading-relaxed [overflow-wrap:anywhere] text-on-surface">{grade.explanation}</p>
                   {grade.citation && (
-                    <p className="mt-1 text-xs italic text-on-surface-variant">
+                    <p className="mt-1 text-xs italic [overflow-wrap:anywhere] text-on-surface-variant">
                       {t("sourceLabel")}: {grade.citation}
                     </p>
                   )}
