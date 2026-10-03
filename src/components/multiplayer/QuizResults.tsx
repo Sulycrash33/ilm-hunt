@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { useGameReducedMotion } from "@/contexts/GameExperienceContext"
 
 import { motion } from "framer-motion"
@@ -41,6 +42,9 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
   const reduce = useGameReducedMotion()
   const sortedPlayers = rankPlayers(players)
   const winner = sortedPlayers[0]
+  const resultsHeading = useRef<HTMLHeadingElement>(null)
+  const hasWinner = Boolean(winner)
+  useEffect(() => { if (hasWinner) resultsHeading.current?.focus() }, [hasWinner])
   const leaders = sortedPlayers.filter(player => player.rank === 1)
   const currentUser = sortedPlayers.find((p) => p.id === currentUserId)
   const currentUserRank = currentUser?.rank ?? 0
@@ -72,7 +76,7 @@ export function QuizResults({ players, pending = false, currentUserId, onPlayAga
         >
           🏆
         </motion.div>
-        <h1 className="font-display-lg-mobile text-display-lg-mobile text-primary mb-2">
+        <h1 ref={resultsHeading} tabIndex={-1} className="font-display-lg-mobile text-display-lg-mobile text-primary mb-2">
           {t("quizComplete")}
         </h1>
         <p className="break-words text-on-surface-variant">

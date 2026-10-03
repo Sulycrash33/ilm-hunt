@@ -11,7 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import type { Translations } from "@/lib/i18n";
 import type { RunSummary as RunSummaryData } from "@/lib/hunt-engine";
 import { rankProgress, rankUpBetween } from "@/lib/ranks";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { playCue } from "@/lib/sound";
 import { playHaptic } from "@/lib/haptics";
 import { Celebration } from "@/components/game/Celebration";
@@ -83,6 +83,8 @@ export function RunSummary({
   nextLevelHref = null,
 }: RunSummaryProps) {
   const { t, dir } = useLanguage();
+  const summaryHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { summaryHeading.current?.focus(); }, []);
   const [showReview, setShowReview] = useState(false);
   const [mistakesOnly, setMistakesOnly] = useState(false);
   const [shareStatus, setShareStatus] = useState<"progressCopied" | "shareFailed" | null>(null);
@@ -127,7 +129,7 @@ export function RunSummary({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={reduce ? false : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="mx-auto w-full max-w-2xl space-y-6"
     >
@@ -138,7 +140,7 @@ export function RunSummary({
 
       <div className="space-y-3 text-center">
         <motion.div
-          initial={{ scale: 0.4, opacity: 0 }}
+          initial={reduce ? false : { scale: 0.4, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 16 }}
           className={cn(
@@ -149,7 +151,7 @@ export function RunSummary({
           {won ? <Trophy className="h-9 w-9" /> : <HeartCrack className="h-9 w-9" />}
         </motion.div>
 
-        <h2 className="font-headline text-3xl text-on-surface">
+        <h2 ref={summaryHeading} tabIndex={-1} className="font-headline text-3xl text-on-surface">
           {won ? t("huntComplete") : t("outOfLives")}
         </h2>
 
@@ -236,9 +238,9 @@ export function RunSummary({
         <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container-highest" role="progressbar" aria-label={t("progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress.percent)}>
           <motion.div
             className="h-full rounded-full bg-primary"
-            initial={{ width: 0 }}
+            initial={reduce ? false : { width: 0 }}
             animate={{ width: `${progress.percent}%` }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            transition={{ duration: reduce ? 0 : 0.8, ease: "easeOut" }}
           />
         </div>
       </div>
@@ -372,7 +374,7 @@ function ReviewCard({ entry }: { entry: RunReviewEntry }) {
   return (
     <div
       className={cn(
-        "space-y-2 rounded-xl border p-4",
+        "min-w-0 space-y-2 rounded-xl border p-4 [overflow-wrap:anywhere]",
         entry.timedOut
           ? "border-white/10 bg-surface-container"
           : gotIt
@@ -391,7 +393,7 @@ function ReviewCard({ entry }: { entry: RunReviewEntry }) {
             <X className="h-4 w-4 text-error" aria-hidden="true" />
           )}
         </span>
-        <p className="text-sm font-medium text-on-surface">{entry.text}</p>
+        <p className="min-w-0 flex-1 text-sm font-medium text-on-surface">{entry.text}</p>
       </div>
 
       <ol className="space-y-1 ps-6">

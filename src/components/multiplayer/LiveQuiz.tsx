@@ -74,6 +74,13 @@ export function LiveQuiz({
   const deadline = useRef(0)
   const [submitting, setSubmitting] = useState(false)
   const feedbackPlayed = useRef<string | null>(null)
+  const questionHeading = useRef<HTMLHeadingElement>(null)
+  const answerFeedback = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => { questionHeading.current?.focus() }, [question.id])
+  useEffect(() => {
+    if (hasAnswered && lastAnswerCorrect !== null) answerFeedback.current?.focus()
+  }, [hasAnswered, lastAnswerCorrect])
 
   useEffect(() => {
     activeQuestion.current = question.id
@@ -161,7 +168,7 @@ export function LiveQuiz({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Question & Choices */}
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <motion.div
             key={question.id}
             initial={reduce ? false : { opacity: 0, y: 20 }}
@@ -176,7 +183,7 @@ export function LiveQuiz({
               if (index < question.choices.length) { event.preventDefault(); void handleAnswer(index) }
             }}
           >
-            <h2 className="font-headline-md text-headline-md text-on-surface mb-6">
+            <h2 ref={questionHeading} tabIndex={-1} className="font-headline-md text-headline-md [overflow-wrap:anywhere] text-on-surface mb-6">
               {question.questionText}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -200,7 +207,7 @@ export function LiveQuiz({
                     aria-pressed={isSelected}
                     aria-keyshortcuts={String(index + 1)}
                     className={`
-                      p-4 rounded-xl border text-start transition-all
+                      min-w-0 p-4 rounded-xl border text-start transition-all
                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
                       ${selectedWasCorrect
                         ? "bg-success/20 border-success"
@@ -216,7 +223,7 @@ export function LiveQuiz({
                     <div className="flex items-center gap-3">
                       <div
                         className={`
-                          w-8 h-8 rounded-full flex items-center justify-center font-bold
+                          w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold
                           ${selectedWasCorrect
                             ? "bg-success text-white"
                             : selectedWasWrong
@@ -229,7 +236,7 @@ export function LiveQuiz({
                       >
                         {String.fromCharCode(65 + index)}
                       </div>
-                      <span className="text-on-surface">{choice}</span>
+                      <span className="min-w-0 [overflow-wrap:anywhere] text-on-surface">{choice}</span>
                     </div>
                   </motion.button>
                 )
@@ -238,9 +245,9 @@ export function LiveQuiz({
           </motion.div>
           <p className="mb-3 text-xs text-on-surface-variant">{t("battleKeyboardHint")}</p>
           <div role="status" aria-atomic="true" className="mb-4 rounded-xl border border-white/10 bg-surface-container-high p-4">
-            <p className={`font-bold ${lastAnswerCorrect === true ? "text-tertiary" : "text-on-surface"}`}>
+            <h3 ref={answerFeedback} tabIndex={-1} className={`font-bold ${lastAnswerCorrect === true ? "text-tertiary" : "text-on-surface"}`}>
               {selectedChoice !== null ? lastAnswerCorrect === null ? t("checkingAnswer") : lastAnswerCorrect ? t("correct") : t("incorrect") : timeRemaining === 0 ? t("battleTimeUp") : t("battleChooseAnswer")}
-            </p>
+            </h3>
             {answerPoints !== null && lastAnswerCorrect === true && <p className="mt-1 text-sm text-primary">{t("battleSpeedPoints", { count: answerPoints })}</p>}
             {!isHost && hasAnswered && !submitting && <p className="mt-1 text-sm text-on-surface-variant">{t("battleWaitingHost")}</p>}
           </div>
