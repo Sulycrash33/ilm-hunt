@@ -83,9 +83,9 @@ export default function HomePage() {
       <motion.header
         initial={reduceMotion ? false : { opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed top-0 left-0 right-0 z-50 bg-surface/60 backdrop-blur-xl border-b border-white/5 h-16"
+        className="fixed top-0 left-0 right-0 z-50 bg-surface/60 backdrop-blur-xl border-b border-white/5 h-24 sm:h-16"
       >
-        <div className="flex justify-between items-center px-5 h-full max-w-7xl mx-auto">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-2 items-center gap-x-3 gap-y-1 px-5 py-2 h-full max-w-7xl mx-auto sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-rows-1 sm:py-0">
           {/* The player's own face, linking to their profile. This used to be a
               hardcoded silhouette: onboarding asked everyone to choose an
               avatar, stored the choice, and then no screen in the app ever drew
@@ -130,7 +130,7 @@ export default function HomePage() {
               assistive technology is entitled to drop it — which would have
               left the accessible reading exactly as bare as before, while
               looking fixed in the source. */}
-          <div className="flex items-center gap-4 bg-surface-container-high/40 px-4 py-1.5 rounded-full border border-white/5">
+          <div className="col-span-2 row-start-2 justify-self-center flex items-center gap-3 bg-surface-container-high/40 px-3 py-1.5 text-xs rounded-full border border-white/5 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:gap-4 sm:px-4 sm:text-base">
             <div className="flex items-center gap-1.5" title={t("dayStreak")}>
               <CountUp value={profile?.streakCount ?? 0} className={`tabular-nums ${streakAlive ? "text-warning" : "text-on-surface-variant"}`} />
               <motion.svg
@@ -158,12 +158,12 @@ export default function HomePage() {
               <span className="sr-only">{t("coinsWord")}</span>
             </div>
           </div>
-          <LogoutButton className="flex items-center justify-center h-11 w-11 rounded-full text-on-surface-variant/70 hover:bg-white/5 hover:text-error transition-colors" />
+          <LogoutButton className="row-start-1 col-start-2 justify-self-end flex items-center justify-center h-11 w-11 rounded-full text-on-surface-variant/70 hover:bg-white/5 hover:text-error transition-colors sm:col-start-3" />
         </div>
       </motion.header>
 
       {/* Main Content */}
-      <main className="mt-20 px-5 max-w-7xl mx-auto space-y-6 relative">
+      <main className="mt-28 px-5 max-w-7xl mx-auto space-y-6 relative sm:mt-20">
         {/* Salaam, name, rank. First thing on the page, on every screen size. */}
         <SalaamGreeting />
 

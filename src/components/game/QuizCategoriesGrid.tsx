@@ -48,7 +48,7 @@ export function QuizCategoriesGrid({ categories }: { categories: QuizCategory[] 
       <div className="flex flex-wrap gap-2" role="group" aria-label={t("allSubjects")}>{filters.map(item =>
         <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)} className={`filter-chip min-h-11 rounded-full border px-4 py-2 text-sm font-semibold ${filter === item.value ? "border-primary/50 bg-primary/10 text-primary" : "border-white/10 bg-surface-container text-on-surface-variant hover:border-white/30"}`}>{t(item.label)}</button>
       )}</div>
-      <p role="status" aria-live="polite" aria-atomic="true" className="text-sm text-on-surface-variant">{results.length} {t("categories")}</p>
+      <p role="status" aria-live="polite" aria-atomic="true" className="text-sm text-on-surface-variant">{t("categories")}: {results.length}</p>
     </div>
     {results.length === 0 ? <div className="glass-card p-8 text-center">
       <BookOpen size={36} className="mx-auto mb-4 text-primary" aria-hidden="true" />
