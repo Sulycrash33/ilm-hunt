@@ -644,13 +644,13 @@ export function HuntView({
 
       switch (id) {
         case "fifty-fifty":
-          setFiftyFiftyRetry(false);
           try {
             const choices = await fiftyFifty(question.id);
             if (operationEpoch.current === epoch &&
                 (rules.runSeconds === null || secondsUntil(runDeadline.current) > 0) &&
                 (!rules.perQuestionTimer || questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) > 0)) {
               setEliminated(choices);
+              setFiftyFiftyRetry(false);
             }
           } catch {
             if (operationEpoch.current === epoch) {
