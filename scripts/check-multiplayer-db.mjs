@@ -35,6 +35,7 @@ try {
   `);
   const identity = fs.readFileSync('supabase/migrations/0036_room_identity.sql', 'utf8');
   await db.exec(identity.slice(identity.indexOf('create or replace function public.stamp_room_player_identity'), identity.indexOf('drop function if exists public.join_room_rpc')));
+  await db.exec(identity.slice(identity.indexOf('drop function if exists public.join_room_rpc')));
   await db.exec(migration);
   await db.exec(`insert into auth.users values('${host}'),('${guest}'),('${stranger}');
     insert into profiles values('${host}', 'Host', null),('${guest}', 'Friend', null),('${stranger}', 'Stranger', null);
@@ -104,5 +105,91 @@ try {
   await rejects(`select start_multiplayer_quiz_rpc('${other}')`, /Not enough questions/);
   assert.equal((await db.query(`select status from quiz_rooms where id='${other}'`)).rows[0].status, 'waiting');
   assert.equal((await db.query(`select count(*)::int as n from quiz_room_questions where room_id='${other}'`)).rows[0].n, 0);
-  console.log('Multiplayer SQL checks passed: countdown, sequence, retries, permissions, timer, scoring and rollback');
+
+  // Play every round as two distinct identities instead of advancing empty
+  // questions. This catches score drift that a single successful answer does
+  // not: third-answer streak bonuses, a wrong answer resetting the streak,
+  // and retries after the room has moved on or finished.
+  const match = '10000000-0000-0000-0000-000000000003';
+  await db.exec(`insert into quiz_rooms(id,code,host_id,host_name,question_count)
+    values('${match}','MATCH3','${host}','Host',5);
+    insert into quiz_room_players(room_id,user_id,is_host,is_ready) values
+      ('${match}','${host}',true,true)`);
+  await user(guest);
+  await db.exec('set role authenticated');
+  assert.equal((await db.query(`select join_room_rpc('match3') as id`)).rows[0].id, match);
+  await db.query(`update quiz_room_players set is_ready=true where room_id=$1 and user_id=$2`, [match, guest]);
+  await rejects(`select join_room_rpc('MATCH3')`, /Already in this room/);
+  await db.exec('reset role');
+  assert.equal((await db.query(`select current_players from quiz_rooms where id=$1`, [match])).rows[0].current_players, 2);
+  assert.deepEqual((await db.query(`select user_name,is_ready from quiz_room_players where room_id=$1 and user_id=$2`, [match, guest])).rows[0],
+    { user_name: 'Friend', is_ready: true });
+  await user(host);
+  await db.exec('set role authenticated');
+  await db.query(`select start_multiplayer_quiz_rpc('${match}')`);
+  await db.exec('reset role');
+  await db.exec(`update quiz_rooms set starts_at=clock_timestamp()-interval '1 second' where id='${match}'`);
+  await user(guest);
+  await db.exec('set role authenticated');
+  await db.query(`select begin_multiplayer_quiz_rpc('${match}')`);
+  const rounds = (await db.query(`select id,order_num from quiz_room_questions
+    where room_id='${match}' order by order_num`)).rows;
+  const expected = new Map([
+    [host, { pattern: [false,true,false,true,true], score: 0, correct: 0, streak: 0 }],
+    [guest, { pattern: [true,true,true,false,true], score: 0, correct: 0, streak: 0 }],
+  ]);
+  const savedGrades = new Map();
+  for (const [index, question] of rounds.entries()) {
+    for (const [identity, tally] of expected) {
+      await user(identity);
+      const correct = tally.pattern[index];
+      const answer = (await db.query(`select * from submit_multiplayer_answer_rpc($1,$2,$3,$4)`,
+        [match, question.id, correct ? 0 : 1, -9999])).rows[0];
+      assert.equal(answer.is_correct, correct);
+      assert.ok(correct ? answer.points_earned >= 10 && answer.points_earned <= 100 : answer.points_earned === 0);
+      tally.correct += Number(correct);
+      tally.streak = correct ? tally.streak + 1 : 0;
+      // The only bonus in this match is the guest's third consecutive answer.
+      tally.score += answer.points_earned + (identity === guest && index === 2 ? 5 : 0);
+      savedGrades.set(`${identity}:${question.id}`, answer);
+      const player = (await db.query(`select score,correct_answers,total_answers,streak
+        from quiz_room_players where room_id=$1 and user_id=$2`, [match, identity])).rows[0];
+      assert.deepEqual(player, { score: tally.score, correct_answers: tally.correct,
+        total_answers: index + 1, streak: tally.streak });
+      // Simulate a committed answer whose response was lost, retrying a
+      // different choice. The first choice and award must remain authoritative.
+      assert.deepEqual((await db.query(`select * from submit_multiplayer_answer_rpc($1,$2,$3,0)`,
+        [match, question.id, correct ? 1 : 0])).rows[0], answer);
+      assert.deepEqual((await db.query(`select score,correct_answers,total_answers,streak
+        from quiz_room_players where room_id=$1 and user_id=$2`, [match, identity])).rows[0], player);
+    }
+    await user(host);
+    const advanced = (await db.query(`select advance_multiplayer_question_rpc($1,$2) as finished`,
+      [match, index + 1])).rows[0].finished;
+    assert.equal(advanced, index === 4);
+    if (index < 4) {
+      assert.equal((await db.query(`select advance_multiplayer_question_rpc($1,$2) as finished`,
+        [match, index + 1])).rows[0].finished, false);
+      assert.equal((await db.query(`select current_question from quiz_rooms where id=$1`, [match])).rows[0].current_question, index + 2);
+    }
+  }
+  await db.exec('reset role');
+  const finished = (await db.query(`select status,finished_at from quiz_rooms where id=$1`, [match])).rows[0];
+  assert.equal(finished.status, 'finished');
+  assert.ok(finished.finished_at);
+  assert.equal((await db.query(`select count(*)::int as n from quiz_room_answers where room_id=$1`, [match])).rows[0].n, 10);
+  const beforeFinishedRetry = (await db.query(`select user_id,score,correct_answers,total_answers,streak
+    from quiz_room_players where room_id=$1 order by user_id`, [match])).rows;
+  await user(guest);
+  assert.deepEqual((await db.query(`select * from submit_multiplayer_answer_rpc($1,$2,1,0)`,
+    [match, rounds[0].id])).rows[0], savedGrades.get(`${guest}:${rounds[0].id}`));
+  assert.deepEqual((await db.query(`select user_id,score,correct_answers,total_answers,streak
+    from quiz_room_players where room_id=$1 order by user_id`, [match])).rows, beforeFinishedRetry);
+  await db.exec('set role authenticated');
+  const visibleAnswers = (await db.query(`select user_id,selected_index from quiz_room_answers where room_id=$1`, [match])).rows;
+  assert.equal(visibleAnswers.length, 5);
+  assert.ok(visibleAnswers.every(answer => answer.user_id === guest), 'A player sees their own choices, never their rival\'s');
+  assert.deepEqual(visibleAnswers.map(answer => answer.selected_index).sort(), [0,0,0,0,1]);
+  await db.exec('reset role');
+  console.log('Multiplayer SQL checks passed: two-player full match, streak scores, lost-response retries, countdown, sequence, permissions, timer and rollback');
 } catch (error) { console.error(error.message); process.exitCode = 1; } finally { await db.close(); }
