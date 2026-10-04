@@ -41,18 +41,9 @@ import { IlmHuntStar } from "@/components/icons/IlmHuntMark"
  */
 export function BrandWordmark({ className = "" }: { className?: string }) {
   /*
-   * The name does not wrap and does not truncate, at any width this app runs
-   * at. Set at one size it did both: at 320px — an iPhone SE, the narrowest
-   * width this project supports and tests at — the header is 320 minus its
-   * padding, the avatar, the streak-and-coins pill and the sign-out button,
-   * which leaves the wordmark about ninety pixels. At 21px the serif needs
-   * ninety-five, so "ILM Hunt" broke over two lines inside a 64px fixed
-   * header and pushed the rule out of the bar.
-   *
-   * Hence three sizes, stepped on arbitrary min-width variants rather than on
-   * Tailwind's `sm`: `sm` is 640px, which no phone reaches in portrait, so a
-   * `sm:` step here would have been desktop-only and the phone would have kept
-   * the broken one. Same trap the greeting fell into; see `SalaamGreeting`.
+   * Keep the name on one line. Phone typography steps independently of the
+   * header's layout: the home header puts its counters on a separate row
+   * below sm so they cannot overlap this lockup at narrow widths.
    */
   return (
     <span className={`inline-flex flex-col items-start leading-none ${className}`}>

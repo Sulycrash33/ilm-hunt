@@ -226,7 +226,7 @@ export function ProfilePageClient({
             <PremiumCard className="p-6">
               <h3 className="font-headline-md text-headline-md text-primary mb-4">{t("recentAchievements")}</h3>
               {unlockedAchievements.length === 0 ? (
-                <EmptyState description={t("noAchievementsYet")} action={<PremiumButton href="/achievements" size="sm" variant="secondary">{t("achievements")}</PremiumButton>} />
+                <EmptyState description={t(achievements.length === 0 ? "noAchievementsYet" : "noAchievementsUnlockedYet")} action={<PremiumButton href="/achievements" size="sm" variant="secondary">{t("achievements")}</PremiumButton>} />
               ) : (
                 <div className="space-y-3">
                   {unlockedAchievements.slice(0, 3).map((achievement) => (
