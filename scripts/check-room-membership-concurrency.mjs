@@ -40,7 +40,7 @@ async function setup() {
   assert.ok(start >= 0 && end > start, 'Fixture setup markers must match');
   let setupCode = fixture.slice(start, end)
     .replace('create role anon; create role authenticated;',
-      "do $$begin if not exists(select from pg_roles where rolname='anon') then create role anon; end if; if not exists(select from pg_roles where rolname='authenticated') then create role authenticated; end if; end$$;")
+      () => "do $$begin if not exists(select from pg_roles where rolname='anon') then create role anon; end if; if not exists(select from pg_roles where rolname='authenticated') then create role authenticated; end if; end$$;")
     .replaceAll('db.exec(', 'admin.query(')
     .replaceAll("fs.readFileSync('supabase/", "fs.readFileSync(repoPath+'/supabase/");
   await new Function('admin', 'fs', 'repoPath', `return (async()=>{${setupCode}})()`)(admin, fs, repoPath);
