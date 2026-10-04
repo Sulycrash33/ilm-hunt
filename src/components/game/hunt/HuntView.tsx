@@ -43,6 +43,7 @@ import {
   submitAnswer,
   type LevelOutcome,
   type LifelinePrice,
+  type SpendResult,
 } from "@/app/(app)/quiz/actions";
 import { AskTheImamDialog } from "../AskTheImamDialog";
 import StarParticles from "../StarParticles";
@@ -175,6 +176,8 @@ export function HuntView({
   const [eliminated, setEliminated] = useState<number[]>([]);
   const [doublePoints, setDoublePoints] = useState(false);
   const [pendingLifeline, setPendingLifeline] = useState<string | null>(null);
+  /** A paid 50:50 whose elimination response failed. Retry the read only. */
+  const [fiftyFiftyRetry, setFiftyFiftyRetry] = useState(false);
   const [showImam, setShowImam] = useState(false);
   const [particles, setParticles] = useState(false);
   /** Set while the reveal is waiting to be dismissed by hand. Only ever true
@@ -269,6 +272,7 @@ export function HuntView({
     lifelineInFlight.current = false;
     setGrading(false);
     setPendingLifeline(null);
+    setFiftyFiftyRetry(false);
     setShowImam(false);
     setSelected(null);
     setGrade(null);
@@ -593,14 +597,15 @@ export function HuntView({
    * without the server ever hearing about it.
    */
   const handleLifeline = async (id: string) => {
-    if (locked || answerInFlight.current || lifelineInFlight.current || pendingLifeline || !question || state.lifelinesUsed.includes(id)) return;
+    const retryPaidFiftyFifty = id === "fifty-fifty" && fiftyFiftyRetry;
+    if (locked || answerInFlight.current || lifelineInFlight.current || pendingLifeline || !question || (state.lifelinesUsed.includes(id) && !retryPaidFiftyFifty)) return;
     if ((rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0) ||
         (rules.perQuestionTimer && questionTimeLeft(questionStartedAt.current, question.timeLimit, questionBoostMs.current) === 0)) return;
 
     const price = lifelinePrices.find((l) => l.id === id);
     if (!price) return;
     // A stocked copy is spent instead of coins, so a low balance is no bar.
-    if ((stock[id] ?? 0) === 0 && coins < price.cost) {
+    if (!retryPaidFiftyFifty && (stock[id] ?? 0) === 0 && coins < price.cost) {
       toast({ title: t("notEnoughCoins"), variant: "destructive" });
       return;
     }
@@ -609,7 +614,9 @@ export function HuntView({
     lifelineInFlight.current = true;
     setPendingLifeline(id);
     try {
-      const spend = await spendLifeline(id, question.id, runId);
+      // The retry is available only after a confirmed successful spend for
+      // this stage. Keep the used marker and never debit coins or stock twice.
+      const spend: SpendResult = retryPaidFiftyFifty ? { success: true } : await spendLifeline(id, question.id, runId);
       if (operationEpoch.current !== epoch) { void refreshProfile(); return; }
       if (rules.runSeconds !== null && secondsUntil(runDeadline.current) === 0) {
         void refreshProfile(); setState(prev => endRun(prev, "won")); return;
@@ -637,6 +644,7 @@ export function HuntView({
 
       switch (id) {
         case "fifty-fifty":
+          setFiftyFiftyRetry(false);
           try {
             const choices = await fiftyFifty(question.id);
             if (operationEpoch.current === epoch &&
@@ -645,7 +653,10 @@ export function HuntView({
               setEliminated(choices);
             }
           } catch {
-            if (operationEpoch.current === epoch) toast({ title: t("error"), variant: "destructive" });
+            if (operationEpoch.current === epoch) {
+              setFiftyFiftyRetry(true);
+              toast({ title: t("error"), variant: "destructive" });
+            }
           }
           break;
         case "ask-imam":
@@ -939,6 +950,17 @@ export function HuntView({
         pending={pendingLifeline}
         onUse={handleLifeline}
       />
+
+      {fiftyFiftyRetry && (
+        <Button
+          variant="outline"
+          className="h-11 w-full"
+          disabled={locked || pendingLifeline !== null}
+          onClick={() => handleLifeline("fifty-fifty")}
+        >
+          {t("lifelineFiftyFifty")} · {t("tryAgain")}
+        </Button>
+      )}
 
       <AskTheImamDialog open={showImam} onOpenChange={setShowImam} question={question} />
     </div>
