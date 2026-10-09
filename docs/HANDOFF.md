@@ -104,7 +104,7 @@ section.
 | Migrations | through **`0065`**, disk and database in step — 63 files, because `0052` was never used |
 | Gates | `tsc --noEmit`, `build`, `test:engine`, `test:i18n`, `test:middleware`, `test:narration` |
 
-Production: <https://ilm-quiz.vercel.app>. Admin: `/admin`, or Profile →
+Production: <https://www.ilmhunt.app>. Admin: `/admin`, or Profile →
 Overview → the **Game master** card.
 
 ## The translation system, which is the newest and largest thing here
@@ -1629,7 +1629,7 @@ route into "sound is on" claims the session. **If the owner still hears nothing
 on an iPhone after this, the remaining candidates are iOS below 16.4 (where
 nothing in a web app can override the switch), the device volume, or sound
 switched on at a different origin — `localStorage` is per origin, so a preview
-deployment does not share it with `ilm-quiz.vercel.app`.**
+deployment does not share it with `www.ilmhunt.app`.**
 
 ### What was measured, and what was not
 
@@ -1655,7 +1655,7 @@ candidates, if a player still hears nothing:
   the switch;
 - the device or browser-tab volume itself;
 - **a different deployment.** `localStorage` is per origin, so sound switched on
-  at a `*-git-*.vercel.app` preview is not switched on at `ilm-quiz.vercel.app`.
+  at a `*-git-*.vercel.app` preview is not switched on at `www.ilmhunt.app`.
   Worth ruling out first, and it costs one look.
 
 ## i18n

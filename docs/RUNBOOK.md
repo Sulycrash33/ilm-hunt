@@ -11,8 +11,8 @@ calls yourself, and only stop for him where this file says to stop.
 
 | | |
 |---|---|
-| repo | `Sulycrash33/ilm-quiz`, branch `claude/hadith-quran-api-verify-egazgf` |
-| Supabase project | **`ziblpvwiqzpjnkqjwodl`** (name: ilm-quiz) — reached with the `mcp__Supabase__*` tools |
+| repo | `Sulycrash33/ilm-hunt`, default branch `main` |
+| Supabase project | **`ziblpvwiqzpjnkqjwodl`** (name: ilm-hunt) — reached with the `mcp__Supabase__*` tools |
 | what to write | `docs/CATEGORY_TIER_MAPS.md` — 29 categories, 261 tier definitions |
 | where text comes from | `docs/SOURCES.md` |
 | standing context | `docs/HANDOFF.md` |
