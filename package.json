@@ -26,6 +26,7 @@
     "test:middleware": "tsx scripts/check-middleware.ts",
     "test:edge-auth": "node scripts/check-edge-authorization.mjs",
     "test:discovery": "tsx scripts/check-subject-discovery.ts",
+    "test:quiz-selection": "node scripts/check-quiz-selection.mjs",
     "test:multiplayer": "tsx scripts/check-multiplayer.ts",
     "test:multiplayer-db": "node scripts/check-multiplayer-db.mjs"
   },

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { timeLimitForTier, clampTier, TIER_MIN, TIER_MAX } from '@/lib/hunt-engine';
 import type { QuizQuestion } from '@/lib/types';
+import { randomInt } from 'node:crypto';
+import { sampleQuestionIds } from '@/lib/mode-question-sampling';
 
 /**
  * Server-only data access for the quiz. These functions replace the hardcoded
@@ -44,6 +46,7 @@ export async function getCategoryBySlug(slug: string) {
     .from('categories')
     .select('id, slug, name, description, icon')
     .eq('slug', slug)
+    .eq('pool', 'category')
     .single();
   return data;
 }
@@ -308,10 +311,10 @@ export async function getPublishedQuizQuestionsForTier(slug: string, tier: numbe
  * for the same set. Deriving the band twice — once in TypeScript from `RANKS`,
  * once in SQL from `rank_tiers` — is how the two would drift apart.
  *
- * Capped well under PostgREST's 1,000-row ceiling on purpose: the category
- * grid spent a release counting to 1,000 and reporting it as the whole bank,
- * and an unbounded select here would be the same mistake in a new place. A
- * cap of 300 is far more than the longest realistic run.
+ * Sample IDs across the entire eligible arena band on the server. The old
+ * unordered limit selected the same arbitrary subset before the client could
+ * shuffle it. Only the sampled questions are fetched and localised; no answer
+ * keys or explanations are selected, and each API page stays below 1,000 rows.
  */
 export async function getModeQuestionPool(
   tierMin: number,
@@ -322,28 +325,25 @@ export async function getModeQuestionPool(
   const low = clampTier(tierMin);
   const high = clampTier(Math.max(tierMin, tierMax));
 
-  const { data, error } = await supabase
-    .from('questions')
-    .select('id, question_text, choices, difficulty, tier, categories(name)')
-    .eq('review_status', 'published')
-    // The arena bank. Timed, survival and practice ask nobody to choose a
-    // subject — questions arrive from all thirteen arena categories at once,
-    // and a player who wants a particular subject goes to the categories,
-    // which are untouched.
-    //
-    // The tier band below is what keeps this from being cruel. The bank is
-    // spread evenly across nine tiers, so selecting with no band at all would
-    // give every question an ~11% chance of being Expert; `startGameRun`
-    // computes the band from the player, so the surprise is in *which*
-    // question, never in whether they could possibly answer it.
-    .eq('pool', 'arena')
-    .gte('tier', low)
-    .lte('tier', high)
-    .limit(limit);
-
-  if (error || !data) return [];
-
-  return localiseQuestions(data);
+  let ids: string[];
+  try {
+    ids = await sampleQuestionIds(async (from, to) => {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('id')
+        .eq('review_status', 'published')
+        .eq('pool', 'arena')
+        .gte('tier', low)
+        .lte('tier', high)
+        .order('id', { ascending: true })
+        .range(from, to);
+      if (error || !data) throw new Error('Arena question selection failed');
+      return data;
+    }, limit, randomInt);
+  } catch {
+    return [];
+  }
+  return getQuestionsByIds(ids);
 }
 
 export interface CategoryLevel {
