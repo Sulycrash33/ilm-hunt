@@ -12,6 +12,7 @@ const cache = new Map();
 let queries = [];
 let bank = [];
 let failPage = -1;
+let failCategories = false;
 function client() {
   return {
     auth: { getUser: async () => ({ data: { user: null } }) },
@@ -35,7 +36,10 @@ function client() {
             op === 'eq' ? row[key] === value : op === 'gte' ? row[key] >= value
               : op === 'lte' ? row[key] <= value : value.includes(row[key]));
           if (q.order) rows = [...rows].sort((a, b) => a[q.order].localeCompare(b[q.order]));
-          const error = q.fields === 'id' && q.from === failPage ? { message: 'unavailable' } : null;
+          // Match the live column grants: filtering questions.pool is denied
+          // even when it is absent from the selected fields.
+          const deniedPool = table === 'questions' && q.filters.some(([, key]) => key === 'pool');
+          const error = deniedPool || (table === 'categories' && failCategories) || (table === 'questions' && q.fields === 'id' && q.from === failPage) ? { message: 'unavailable' } : null;
           rows = rows.slice(q.from, q.to + 1);
           // Simulate column selection, including the categories relationship.
           rows = rows.map(row => Object.fromEntries(q.fields.split(',').map(field => {
@@ -92,11 +96,11 @@ assert.deepEqual(frequencies, [2, 2, 2]);
 assert.equal(await getCategoryBySlug('arena'), null);
 assert.equal((await getCategoryBySlug('ordinary')).id, 'ordinary');
 bank = Array.from({ length: 1601 }, (_, i) => ({
-  id: `q${String(i).padStart(4, '0')}`, pool: 'arena', tier: 2, review_status: 'published',
+  id: `q${String(i).padStart(4, '0')}`, category_id: 'arena', pool: 'arena', tier: 2, review_status: 'published',
   question_text: 'Synthetic prompt', choices: ['A', 'B'], difficulty: 'easy', categories: { name: 'Synthetic' },
   correct_choice_index: 1, explanation: 'Private synthetic explanation',
 }));
-bank.push({ ...bank[0], id: 'category', pool: 'category' }, { ...bank[0], id: 'draft', review_status: 'ai_drafted' }, { ...bank[0], id: 'outside', tier: 9 });
+bank.push({ ...bank[0], id: 'category', category_id: 'ordinary', pool: 'category' }, { ...bank[0], id: 'draft', review_status: 'ai_drafted' }, { ...bank[0], id: 'outside', tier: 9 });
 queries = [];
 const result = await getModeQuestionPool(1, 3);
 assert.equal(result.length, 300);
@@ -105,8 +109,14 @@ assert.ok(result.every(q => q.id.startsWith('q') && q.tier === 2));
 assert.ok(result.every(q => !('correct_choice_index' in q) && !('explanation' in q)));
 const idQueries = queries.filter(q => q.table === 'questions' && q.fields === 'id');
 assert.equal(idQueries.length, 4);
-assert.ok(idQueries.every(q => q.order === 'id' && q.filters.some(([op, key, value]) => op === 'eq' && key === 'pool' && value === 'arena')));
+assert.ok(idQueries.every(q => q.order === 'id' && q.filters.some(([op, key, value]) => op === 'in' && key === 'category_id' && value.includes('arena'))));
+assert.ok(idQueries.every(q => !q.filters.some(([, key]) => key === 'pool')));
 assert.ok(queries.filter(q => q.table === 'questions').every(q => !/correct_choice_index|explanation|citation/.test(q.fields)));
 failPage = 500;
 assert.equal((await getModeQuestionPool(1, 3)).length, 0);
+failPage = -1;
+failCategories = true;
+queries = [];
+assert.equal((await getModeQuestionPool(1, 3)).length, 0);
+assert.equal(queries.filter(q => q.table === 'questions').length, 0);
 console.log('Quiz selection: full-bank eligibility, equal sampling, pagination, failure handling, category isolation, tier/published filters and hidden answer fields passed.');
