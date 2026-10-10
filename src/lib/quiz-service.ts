@@ -325,6 +325,16 @@ export async function getModeQuestionPool(
   const low = clampTier(tierMin);
   const high = clampTier(Math.max(tierMin, tierMax));
 
+  // `questions.pool` was added after column-level player grants and cannot
+  // be used in an authenticated SELECT, even as a filter. Question pool is
+  // derived from category pool; use the already-readable category metadata.
+  const { data: arenaCategories, error: categoryError } = await supabase
+    .from('categories')
+    .select('id')
+    .eq('pool', 'arena');
+  if (categoryError || !arenaCategories?.length) return [];
+  const arenaCategoryIds = arenaCategories.map((category) => category.id);
+
   let ids: string[];
   try {
     ids = await sampleQuestionIds(async (from, to) => {
@@ -332,7 +342,7 @@ export async function getModeQuestionPool(
         .from('questions')
         .select('id')
         .eq('review_status', 'published')
-        .eq('pool', 'arena')
+        .in('category_id', arenaCategoryIds)
         .gte('tier', low)
         .lte('tier', high)
         .order('id', { ascending: true })
