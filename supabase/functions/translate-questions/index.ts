@@ -374,17 +374,24 @@ Deno.serve(async (req) => {
     Array.from({ length: Math.min(CONCURRENCY, rows.length) }, () => worker()),
   );
 
+  const summary = {
+    claimed: rows.length,
+    written,
+    refused,
+    failed,
+    released,
+    rateLimited,
+    concurrency: CONCURRENCY,
+    elapsedMs: Date.now() - startedAt,
+  };
+  // HTTP 200 includes batches that only return claims to the queue. Log the
+  // same aggregate counters so completion can be distinguished from retries.
+  // Existing released/rateLimited counters describe attempted release and
+  // retryable errors respectively; neither proves a persisted state change.
+  console.info("translate-questions: batch", JSON.stringify(summary));
+
   return new Response(
-    JSON.stringify({
-      claimed: rows.length,
-      written,
-      refused,
-      failed,
-      released,
-      rateLimited,
-      concurrency: CONCURRENCY,
-      elapsedMs: Date.now() - startedAt,
-    }),
+    JSON.stringify(summary),
     { headers: { "Content-Type": "application/json" } },
   );
 });
